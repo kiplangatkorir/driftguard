@@ -48,18 +48,18 @@ The library builds on drift detection to:
 If you use the Drift Detection Library in your research or projects, please cite it as follows:
 
 ```bibtex
-@software{korir2025driftdetection,
+@software{korir2025driftmonitor,
   author = {Kiplangat Korir},
   title = {Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
   year = {2025},
-  url = {https://github.com/kiplangatkorir/drift-detection-library},
+  url = {https://github.com/kiplangatkorir/driftmonitor},
   version = {0.1.0},
   license = {MIT}
 }
 ```
 
 Alternatively, include this text in your work:
-> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/drift-detection-library.
+> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftmonitor.
 
 ## **Features**
 - **Drift Detection**:
