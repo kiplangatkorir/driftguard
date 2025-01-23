@@ -2,40 +2,87 @@
 # **Drift Detection Library**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
-**Version:** 0.1.0
+**Version:** 0.1.0  
 
 ## **Overview**
-The Drift Detection Library is a Python package designed to monitor machine learning models in production by detecting **data drift** and **concept drift** in real-time. Data drift occurs when the statistical properties of data change over time, leading to degraded model performance. This library empowers machine learning engineers, data scientists, and businesses to stay ahead by detecting and responding to these changes effectively.
+The Drift Detection Library is a Python package that empowers data scientists and machine learning engineers to monitor, detect, and respond to **data drift** and **concept drift** in real-time. These changes can negatively impact the performance of machine learning models in production. This library provides theoretical and practical tools to understand and mitigate drift, ensuring the reliability of deployed systems.
+
+## **Theoretical Background**
+
+### **1. What is Data Drift?**
+Data drift refers to the change in the statistical properties of input data over time. It can occur due to:
+- **Feature Drift**: Individual features in the dataset change distributions.
+- **Concept Drift**: The relationship between input features and the target variable changes.
+
+Such shifts can degrade model performance, as the model was trained on data that no longer represents the current data distribution.
+
+
+### **2. Statistical Tests for Drift Detection**
+The library relies on well-established statistical methods to detect drift:
+
+#### **Kolmogorov-Smirnov (KS) Test**  
+- **Used for Numerical Features**
+- Measures the maximum difference between two cumulative distribution functions (CDFs) of the reference and new datasets.
+- Null Hypothesis: The two datasets come from the same distribution.
+- Result: A **p-value** that indicates whether the null hypothesis can be rejected.
+
+#### **Chi-Square Test**
+- **Used for Categorical Features**
+- Compares observed vs. expected frequencies of categories in the reference and new datasets.
+- Null Hypothesis: The two datasets have the same distribution of categorical values.
+- Result: A **p-value** indicating whether the observed differences are significant.
+
+#### **Drift Severity Score**
+- Aggregates feature-level drift into an overall dataset-level drift score.
+- Ranges between 0 (no drift) and 1 (severe drift).
+
+### **3. Monitoring and Alerts**
+The library builds on drift detection to:
+1. Quantify **how much** the dataset has shifted.
+2. Automatically **trigger alerts** when drift surpasses a user-defined threshold.
+3. Suggest **actionable steps** for retraining or adjusting the model.
+
+---
+
+## **Cite This Work**
+If you use the Drift Detection Library in your research or projects, please cite it as follows:
+
+```bibtex
+@software{korir2025driftdetection,
+  author = {Kiplangat Korir},
+  title = {Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
+  year = {2025},
+  url = {https://github.com/kiplangatkorir/drift-detection-library},
+  version = {0.1.0},
+  license = {MIT}
+}
+```
+
+Alternatively, include this text in your work:
+> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/drift-detection-library.
 
 ## **Features**
 - **Drift Detection**:
-  - Detects numerical feature drift using the **Kolmogorov-Smirnov test**.
-  - Detects categorical feature drift using the **Chi-Square test**.
-  - Computes drift scores for individual features and the dataset as a whole.
-  
+  - Numerical drift detection using the Kolmogorov-Smirnov test.
+  - Categorical drift detection using the Chi-Square test.
+  - Drift severity scoring.
+
 - **Drift Monitoring**:
-  - Provides real-time alerts for significant drift.
-  - Generates comprehensive drift reports.
+  - Real-time drift monitoring with alerts.
+  - Comprehensive drift reports.
 
 - **Model Monitoring**:
-  - Tracks key model metrics such as accuracy and latency over time.
-  - Monitors input-output consistency.
+  - Tracks model performance metrics (e.g., accuracy, latency).
+  - Monitors consistency between inputs and outputs.
 
 - **Version Management**:
-  - Logs and manages model versions for better traceability.
-
-
-## **Why Use This Library?**
-- **Ensure Model Performance**: Continuous drift monitoring prevents performance degradation in production.
-- **Automated Alerts**: Receive notifications when drift is detected, so you can act immediately.
-- **Simplify Model Retraining**: Gain insights into why your model is failing and identify which features to prioritize for retraining.
-- **Data-Driven Decision Making**: Use detailed drift reports to inform business decisions.
+  - Logs and manages model versions for traceability.
 
 ## **Installation**
 Install the library using pip:
 
 ```bash
-pip install drift-detection-library
+pip install driftmonitor
 ```
 
 ## **Quickstart Guide**
@@ -44,8 +91,8 @@ pip install drift-detection-library
 ```python
 from driftmonitor.drift_detector import DriftDetector
 
-# Load reference data (training data)
-reference_data = load_reference_data()  # Replace with your data loading code
+# Load reference data (e.g., training data)
+reference_data = load_reference_data()
 
 # Initialize the drift detector
 detector = DriftDetector(reference_data=reference_data)
@@ -53,8 +100,8 @@ detector = DriftDetector(reference_data=reference_data)
 
 ### **2. Detect Drift in New Data**
 ```python
-# Load new data (production data)
-new_data = load_new_data()  # Replace with your data loading code
+# Load new data (e.g., production data)
+new_data = load_new_data()
 
 # Run drift detection
 drift_report = detector.detect_drift(new_data)
@@ -63,36 +110,32 @@ drift_report = detector.detect_drift(new_data)
 print(drift_report)
 ```
 
-### **3. Receive Alerts for Significant Drift**
+### **3. Real-Time Alerts**
 ```python
 from driftmonitor.alert_manager import AlertManager
 
 # Initialize the alert manager
 alert_manager = AlertManager()
 
-# Trigger an alert if drift is significant
+# Trigger an alert if drift severity exceeds 0.7
 if drift_report['drift_severity'] > 0.7:
-    alert_manager.send_alert("Significant drift detected in production data!")
+    alert_manager.send_alert("Significant drift detected!")
 ```
 
 ## **How It Works**
-The Drift Detection Library operates in three key steps:
 1. **Compare Distributions**:
-   - For **numerical features**, statistical tests (e.g., Kolmogorov-Smirnov) measure the difference between the distributions of reference data and new data.
-   - For **categorical features**, Chi-Square tests assess the differences in observed vs. expected frequencies.
+   - Numerical features are tested using the Kolmogorov-Smirnov test.
+   - Categorical features are tested using the Chi-Square test.
 
-2. **Calculate Drift Scores**:
-   - A drift score is computed for each feature, summarizing how much the feature has changed.
+2. **Compute Drift Scores**:
+   - Each feature's drift is scored and aggregated into a dataset-level severity score.
 
-3. **Generate a Drift Report**:
-   - The report includes:
-     - Drift severity for individual features.
-     - Overall dataset drift severity.
-     - Suggested next steps (e.g., retraining the model).
+3. **Generate a Report**:
+   - The drift report includes per-feature drift scores, dataset drift severity, and recommendations.
 
 ## **Directory Structure**
 ```
-driftmonitor/                  # Root directory of the library
+driftmonitor/                  # Root directory
 ├── driftmonitor/              # Library source code
 │   ├── __init__.py            # Package initializer
 │   ├── drift_detector.py      # Drift detection logic
@@ -105,47 +148,27 @@ driftmonitor/                  # Root directory of the library
 │   ├── test_model_monitor.py
 │   ├── test_alert_manager.py
 │   └── test_version_manager.py
-├── examples/                  # Example usage scripts
+├── examples/                  # Example scripts
 │   ├── simple_example.py
 │   └── advanced_example.py
 ├── LICENSE                    # License file
 ├── README.md                  # Library documentation
 ├── setup.py                   # Installation script
-├── requirements.txt           # List of dependencies
+├── requirements.txt           # Dependencies
 └── .gitignore                 # Ignore unnecessary files
 ```
 
-## **Examples**
-
-### Simple Drift Detection Example
-```python
-from driftmonitor.drift_detector import DriftDetector
-
-# Reference data
-reference_data = {"feature_1": [1, 2, 3, 4, 5], "feature_2": ["A", "B", "A", "C", "B"]}
-
-# New data
-new_data = {"feature_1": [6, 7, 8, 9, 10], "feature_2": ["C", "C", "A", "C", "C"]}
-
-# Initialize detector and detect drift
-detector = DriftDetector(reference_data)
-drift_report = detector.detect_drift(new_data)
-
-# View report
-print(drift_report)
-```
-
 ## **Contributing**
-Contributions are welcome! Here's how you can help:
+Contributions are welcome! To contribute:
 1. Fork the repository.
-2. Create a feature branch.
+2. Create a new branch for your feature or bugfix.
 3. Submit a pull request.
 
 ## **License**
 This project is licensed under the [MIT License](LICENSE).
 
 ## **Contact**
-For questions, feedback, or contributions, feel free to reach out:
-- **Email**: korirkiplangat22@gmail.com
+If you have questions or feedback, reach out:  
+- **Email**: [korir@GraphFusion.onmicrosoft.com](mailto:korirkiplangat22@gmail.com)  
+- **GitHub**: [kiplangatkorir](https://github.com/kiplangatkorir)
 
-Let me know if you want to customize this further!
