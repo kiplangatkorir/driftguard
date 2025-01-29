@@ -16,7 +16,6 @@ Data drift refers to the change in the statistical properties of input data over
 
 Such shifts can degrade model performance, as the model was trained on data that no longer represents the current data distribution.
 
-
 ### **2. Statistical Tests for Drift Detection**
 The library relies on well-established statistical methods to detect drift:
 
@@ -41,25 +40,6 @@ The library builds on drift detection to:
 1. Quantify **how much** the dataset has shifted.
 2. Automatically **trigger alerts** when drift surpasses a user-defined threshold.
 3. Suggest **actionable steps** for retraining or adjusting the model.
-
----
-
-## **Cite This Work**
-If you use the Drift Detection Library in your research or projects, please cite it as follows:
-
-```bibtex
-@software{korir2025driftmonitor,
-  author = {Kiplangat Korir},
-  title = {Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
-  year = {2025},
-  url = {https://github.com/kiplangatkorir/driftmonitor},
-  version = {0.1.0},
-  license = {MIT}
-}
-```
-
-Alternatively, include this text in your work:
-> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftmonitor.
 
 ## **Features**
 - **Drift Detection**:
@@ -166,6 +146,23 @@ Contributions are welcome! To contribute:
 
 ## **License**
 This project is licensed under the [MIT License](LICENSE).
+
+## **Cite This Work**
+If you use the Drift Detection Library in your research or projects, please cite it as follows:
+
+```bibtex
+@software{korir2025driftmonitor,
+  author = {Kiplangat Korir},
+  title = {Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
+  year = {2025},
+  url = {https://github.com/kiplangatkorir/driftmonitor},
+  version = {0.1.0},
+  license = {MIT}
+}
+```
+
+Alternatively, include this text in your work:
+> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftmonitor.
 
 ## **Contact**
 If you have questions or feedback, reach out:  
