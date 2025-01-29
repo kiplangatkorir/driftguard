@@ -6,3 +6,4 @@ joblib
 pytest
 scipy
 python-dotenv
+secure-smtplib
