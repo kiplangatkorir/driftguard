@@ -23,3 +23,10 @@ class VersionManager:
         self.version_history.append(version_info)
         
         return version_info
+
+    def list_versions(self):
+        """
+        Lists all tracked model versions.
+        :return: A list of dictionaries containing version information.
+        """
+        return self.version_history
