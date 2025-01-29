@@ -19,8 +19,8 @@ class AlertManager:
         self.threshold = threshold
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-        self.sender_email = sender_email or os.getenv('SENDER_EMAIL')  
-        self.sender_password = sender_password or os.getenv('SENDER_PASSWORD')  
+        self.sender_email = os.getenv('SENDER_EMAIL')  
+        self.sender_password = os.getenv('SENDER_PASSWORD')  
         self.recipient_email = recipient_email or os.getenv('RECIPIENT_EMAIL')  
 
         if not self.sender_email or not self.sender_password or not self.recipient_email:
