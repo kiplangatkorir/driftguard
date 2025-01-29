@@ -75,7 +75,7 @@ def main():
     # Configure alert recipient
     try:
         alert_manager.set_recipient_email(
-            "kiplangatgilbert00@gmail.com",
+            "korirg543@gmail.com",
             "Machine Learning Engineer"
         )
     except ValueError as e:
