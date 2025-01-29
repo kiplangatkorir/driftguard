@@ -8,7 +8,6 @@ from driftmonitor.drift_detector import DriftDetector
 from driftmonitor.model_monitor import ModelMonitor
 from driftmonitor.alert_manager import AlertManager
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_iris
 import logging
@@ -69,28 +68,15 @@ def main():
     model = train_model(X_train, y_train)
     
     # Initialize monitoring components
-    monitor = ModelMonitor(
-        model,
-        metric_functions={
-            'accuracy': accuracy_score,
-            'precision': lambda y_true, y_pred: precision_score(y_true, y_pred, average='macro'),
-            'recall': lambda y_true, y_pred: recall_score(y_true, y_pred, average='macro')
-        }
-    )
-    
-    drift_detector = DriftDetector(
-        reference_data=X_train,
-        drift_threshold=0.5
-    )
-    
-    # Set up alerts
+    monitor = ModelMonitor(model)
+    drift_detector = DriftDetector(reference_data=X_train)
     alert_manager = AlertManager(threshold=0.5)
     
     # Configure recipient email (in a real application, this would be done by the user)
     try:
         alert_manager.set_recipient_email(
             "kiplangatgilbert00@gmail.com",
-            "Data Scientist"
+            "Machine Learning Engineer"
         )
     except ValueError as e:
         logger.error(f"Failed to set recipient email: {e}")
@@ -143,13 +129,20 @@ def main():
         """
         
         for feature, report in drift_report.items():
-            message += f"\n- {feature}: {report['drift_score']:.3f}"
+            message += f"\n- {feature}:"
+            message += f"\n  Drift Score: {report['drift_score']:.3f}"
+            message += f"\n  P-value: {report['p_value']:.3f}"
             
             # Send individual feature alerts if needed
             if report["drift_score"] > alert_manager.threshold:
+                feature_message = (
+                    f"High drift detected in feature '{feature}'!\n"
+                    f"Drift Score: {report['drift_score']:.3f}\n"
+                    f"P-value: {report['p_value']:.3f}"
+                )
                 alert_manager.check_and_alert(
                     drift_score=report["drift_score"],
-                    message=f"High drift detected in feature '{feature}'!"
+                    message=feature_message
                 )
         
         # Send overall alert if max drift is high
@@ -167,6 +160,13 @@ def main():
         print(f"Performance: {current_performance}")
         print(f"Max Drift Score: {max_drift_score:.3f}")
         
+        # Print detailed drift results
+        print("\nFeature-level drift details:")
+        for feature, report in drift_report.items():
+            print(f"{feature}:")
+            print(f"  - Drift Score: {report['drift_score']:.3f}")
+            print(f"  - P-value: {report['p_value']:.3f}")
+    
     # Print final alert statistics
     stats = alert_manager.get_alert_statistics()
     print("\nAlert Statistics:")
