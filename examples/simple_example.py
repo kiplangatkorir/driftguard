@@ -8,6 +8,8 @@ from driftmonitor.alert_manager import AlertManager
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from dotenv import load_dotenv
+load_dotenv() 
 
 # Example dataset (Iris dataset for simplicity)
 from sklearn.datasets import load_iris
