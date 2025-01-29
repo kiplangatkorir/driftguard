@@ -26,5 +26,26 @@
     "drift_score": 0.9381840519926326,
     "recipient": "user@example.com",
     "status": "success"
+  },
+  {
+    "timestamp": "2025-01-29T16:04:15.828287",
+    "message": "High drift detected in feature 'sepal length (cm)'!\nDrift Score: 0.884\nP-value: 0.116",
+    "drift_score": 0.8841488146268098,
+    "recipient": "kiplangatgilbert00@gmail.com",
+    "status": "success"
+  },
+  {
+    "timestamp": "2025-01-29T16:04:19.048504",
+    "message": "High drift detected in feature 'petal width (cm)'!\nDrift Score: 0.627\nP-value: 0.373",
+    "drift_score": 0.6270364844825975,
+    "recipient": "kiplangatgilbert00@gmail.com",
+    "status": "success"
+  },
+  {
+    "timestamp": "2025-01-29T16:04:21.877422",
+    "message": "\n        Scenario: Major Drift\n        \n        Performance Metrics:\n        - Current Accuracy: 0.600\n        - Baseline Accuracy: 1.000\n        - Performance Drop: 0.400\n        \n        Drift Analysis:\n        - Maximum Drift Score: 0.884\n        - Threshold: 0.5\n        \n        Feature-level Drift:\n        \n- sepal length (cm):\n  Drift Score: 0.884\n  P-value: 0.116\n- sepal width (cm):\n  Drift Score: 0.287\n  P-value: 0.713\n- petal length (cm):\n  Drift Score: 0.391\n  P-value: 0.609\n- petal width (cm):\n  Drift Score: 0.627\n  P-value: 0.373",
+    "drift_score": 0.8841488146268098,
+    "recipient": "kiplangatgilbert00@gmail.com",
+    "status": "success"
   }
 ]
