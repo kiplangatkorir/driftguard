@@ -2,6 +2,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+from dotenv import load_dotenv
+load_dotenv()  
 
 class AlertManager:
     def __init__(self, threshold=0.5, smtp_server="smtp.gmail.com", smtp_port=587, sender_email=None, sender_password=None, recipient_email=None):
