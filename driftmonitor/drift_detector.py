@@ -18,7 +18,13 @@ class DriftDetector:
         """
         drift_report = {}
 
-        for column in new_data.columns:
+        if new_data.empty:
+            return drift_report
+        
+        for column in self.reference_data.columns:
+            if column not in new_data.columns:
+                continue
+
             drift_report[column] = self._detect_feature_drift(self.reference_data[column], new_data[column])
         
         return drift_report
