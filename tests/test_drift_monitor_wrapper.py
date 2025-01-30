@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from driftmonitor.drift_detector import DriftDetector
 from driftmonitor.model_monitor import ModelMonitor
 from driftmonitor.alert_manager import AlertManager
+from driftmonitor.drift_monitor_wrapper import DriftMonitorWrapper
 
 # Mock the main class and its dependencies
 @pytest.fixture
@@ -63,7 +64,7 @@ def test_initialization_without_email(mock_model, reference_data):
         model=mock_model,
         reference_data=reference_data
     )
-    assert monitor.alert_manager.threshold == 0.5  # Default threshold
+    assert monitor.alert_manager.threshold == 0.5  
 
 def test_monitor_no_drift(drift_monitor, new_data):
     """Test monitoring when no drift is detected"""
