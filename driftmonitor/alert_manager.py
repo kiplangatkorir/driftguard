@@ -118,7 +118,12 @@ class AlertManager:
         return self.recipient_config
 
     def _load_recipient_config(self) -> Dict:
-        """Loads the recipient configuration from file."""
+        """
+        Loads the recipient configuration from file.
+        
+        Returns:
+            Dict containing recipient configuration.
+        """
         try:
             if os.path.exists(self.recipient_config_file):
                 with open(self.recipient_config_file, 'r') as f:
@@ -129,7 +134,12 @@ class AlertManager:
             return {}
 
     def _load_alert_history(self) -> List[Dict]:
-        """Loads the alert history from file."""
+        """
+        Loads the alert history from file.
+        
+        Returns:
+            List of alert history entries.
+        """
         try:
             if os.path.exists(self.alert_history_file):
                 with open(self.alert_history_file, 'r') as f:
@@ -147,9 +157,192 @@ class AlertManager:
         except Exception as e:
             logger.error(f"Failed to save alert history: {e}")
 
+    def _generate_html_email(
+        self,
+        message: str,
+        drift_score: Optional[float],
+        current_time: datetime
+    ) -> str:
+        """
+        Generates HTML-formatted email content.
+        
+        Args:
+            message: Alert message
+            drift_score: Drift score value
+            current_time: Current timestamp
+            
+        Returns:
+            str: HTML-formatted email content
+        """
+        recipient_name = self.recipient_config.get('name', '')
+        greeting = f"Hello {recipient_name}," if recipient_name else "Hello,"
+        
+        return f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                }}
+                .alert-details {{
+                    background-color: #fff3cd;
+                    padding: 15px;
+                    border-left: 5px solid #ffeeba;
+                    margin-bottom: 20px;
+                }}
+                .message-box {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                }}
+                .stats {{
+                    background-color: #e9ecef;
+                    padding: 15px;
+                    border-radius: 5px;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 10px;
+                }}
+                th, td {{
+                    padding: 8px;
+                    text-align: left;
+                    border-bottom: 1px solid #dee2e6;
+                }}
+                .severity-high {{
+                    color: #dc3545;
+                    font-weight: bold;
+                }}
+                .severity-medium {{
+                    color: #ffc107;
+                    font-weight: bold;
+                }}
+                .severity-low {{
+                    color: #28a745;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2 style="margin: 0;">Model Drift Alert</h2>
+                <p>{greeting}</p>
+            </div>
+            
+            <div class="alert-details">
+                <h3>Alert Details</h3>
+                <table>
+                    <tr>
+                        <th>Time</th>
+                        <td>{current_time.strftime('%Y-%m-%d %H:%M:%S')}</td>
+                    </tr>
+                    <tr>
+                        <th>Drift Score</th>
+                        <td class="{self._get_severity_class(drift_score)}">
+                            {drift_score:.3f if drift_score is not None else 'N/A'}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Threshold</th>
+                        <td>{self.threshold}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="message-box">
+                <h3>Alert Message</h3>
+                <p>{message}</p>
+            </div>
+            
+            <div class="stats">
+                <h3>Alert Statistics</h3>
+                <table>
+                    <tr>
+                        <th>Total Alerts Today</th>
+                        <td>{self.alert_count + 1}</td>
+                    </tr>
+                    <tr>
+                        <th>Last Alert</th>
+                        <td>{self.last_alert_time.strftime('%Y-%m-%d %H:%M:%S') if self.last_alert_time else 'None'}</td>
+                    </tr>
+                </table>
+            </div>
+        </body>
+        </html>
+        """
+
+    def _generate_plain_text_email(
+        self,
+        message: str,
+        drift_score: Optional[float],
+        current_time: datetime
+    ) -> str:
+        """
+        Generates plain text email content as fallback.
+        
+        Args:
+            message: Alert message
+            drift_score: Drift score value
+            current_time: Current timestamp
+            
+        Returns:
+            str: Plain text email content
+        """
+        recipient_name = self.recipient_config.get('name', '')
+        greeting = f"Hello {recipient_name}," if recipient_name else "Hello,"
+        
+        return f"""
+{greeting}
+
+Drift Alert Details:
+-------------------
+Time: {current_time}
+Drift Score: {drift_score if drift_score is not None else 'N/A'}
+Threshold: {self.threshold}
+
+Message:
+{message}
+
+Alert Statistics:
+----------------
+Total Alerts Today: {self.alert_count + 1}
+Last Alert: {self.last_alert_time if self.last_alert_time else 'None'}
+"""
+
+    def _get_severity_class(self, drift_score: Optional[float]) -> str:
+        """
+        Determines the severity class based on drift score.
+        
+        Args:
+            drift_score: The drift score value
+            
+        Returns:
+            str: CSS class name for severity styling
+        """
+        if drift_score is None:
+            return ""
+        if drift_score > self.threshold * 1.5:
+            return "severity-high"
+        if drift_score > self.threshold * 1.2:
+            return "severity-medium"
+        return "severity-low"
+
     def send_alert(self, message: str, drift_score: Optional[float] = None) -> bool:
         """
-        Sends an alert message via email with enhanced error handling and logging.
+        Sends an HTML-formatted alert message via email with enhanced error handling and logging.
         
         Args:
             message: The alert message.
@@ -168,7 +361,6 @@ class AlertManager:
             )
             
         recipient_email = self.recipient_config['email']
-        recipient_name = self.recipient_config.get('name', '')
         current_time = datetime.now()
         
         alert_details = {
@@ -179,38 +371,27 @@ class AlertManager:
         }
         
         try:
-            msg = MIMEMultipart()
+            msg = MIMEMultipart('alternative')
             msg['From'] = self.sender_email
             msg['To'] = recipient_email
             msg['Subject'] = f'Drift Alert: Model Drift Detected (Score: {drift_score:.3f})'
 
-            greeting = f"Hello {recipient_name}," if recipient_name else "Hello,"
-            body_text = f"""
-            {greeting}
+            # Plain text version
+            text_content = self._generate_plain_text_email(message, drift_score, current_time)
+            plain_part = MIMEText(text_content, 'plain')
             
-            Drift Alert Details:
-            -------------------
-            Time: {current_time}
-            Drift Score: {drift_score if drift_score is not None else 'N/A'}
-            Threshold: {self.threshold}
+            # HTML version
+            html_content = self._generate_html_email(message, drift_score, current_time)
+            html_part = MIMEText(html_content, 'html')
             
-            Message:
-            {message}
-            
-            Alert Statistics:
-            ----------------
-            Total Alerts Today: {self.alert_count + 1}
-            Last Alert: {self.last_alert_time if self.last_alert_time else 'None'}
-            """
-            
-            body = MIMEText(body_text, 'plain')
-            msg.attach(body)
+            # Add both parts to the message
+            msg.attach(plain_part)
+            msg.attach(html_part)
 
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 server.starttls()
                 server.login(self.sender_email, self.sender_password)
-                text = msg.as_string()
-                server.sendmail(self.sender_email, recipient_email, text)
+                server.sendmail(self.sender_email, recipient_email, msg.as_string())
 
             self.alert_count += 1
             self.last_alert_time = current_time
