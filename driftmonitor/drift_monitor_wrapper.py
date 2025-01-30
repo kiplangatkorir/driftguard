@@ -67,6 +67,8 @@ class DriftMonitorWrapper:
         # Convert new_data to DataFrame if it's a numpy array
         if isinstance(new_data, np.ndarray):
             new_data = pd.DataFrame(new_data)
+        elif not isinstance(new_data, pd.DataFrame):
+            raise TypeError("new_data must be either a numpy.ndarray or pandas.DataFrame")
 
         results = {
             'has_drift': False,
