@@ -76,10 +76,8 @@ def test_edge_cases():
     small_df1 = pd.DataFrame({"feature1": np.random.normal(0, 1, 3)})
     small_df2 = pd.DataFrame({"feature1": np.random.normal(5, 1, 3)})
 
-    # Check for empty dataframe case
     assert detector.detect_drift(empty_df) == {}
 
-    # Handle the small datasets gracefully, assuming it shouldn't fail
     drift_report = detector.detect_drift(small_df2)
     assert "feature1" in drift_report
     assert "p_value" in drift_report["feature1"]
