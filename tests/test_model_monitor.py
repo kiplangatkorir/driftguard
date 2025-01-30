@@ -34,7 +34,7 @@ class TestModelMonitor(unittest.TestCase):
         """Test that performance is tracked correctly."""
         results = self.monitor.track_performance(self.X_test, self.y_test)
         self.assertIn("accuracy", results)
-        self.assertAlmostEqual(results["accuracy"], 0.6666666666666666, places=7)  # Adjusted expected accuracy
+        self.assertAlmostEqual(results["accuracy"], 0.6666666666666666, places=7)  
 
     def test_compute_metric(self):
         """Test that the metric computation works correctly."""
@@ -43,7 +43,7 @@ class TestModelMonitor(unittest.TestCase):
 
     def test_empty_data(self):
         """Test how the monitor handles empty data."""
-        empty_data = np.array([]).reshape(0, self.X_test.shape[1])  # Empty but with correct feature shape
+        empty_data = np.array([]).reshape(0, self.X_test.shape[1])  
         empty_labels = np.array([])
         
         with self.assertRaises(ValueError):

@@ -74,8 +74,15 @@ class AlertManager:
             bool: True if email format is valid, False otherwise.
         """
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(pattern, email))
 
+        if not re.match(pattern, email):
+            return False
+        
+        local_part, domain_part = email.rsplit('@', 1)
+        if ".." in domain_part:
+            return False
+        
+        return True
     def set_recipient_email(self, email: str, name: Optional[str] = None) -> bool:
         """
         Sets or updates the recipient's email configuration.
