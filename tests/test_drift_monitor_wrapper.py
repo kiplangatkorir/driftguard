@@ -45,7 +45,7 @@ def test_initialization(monitor, mock_model, reference_data):
     assert monitor.model == mock_model
     assert monitor.reference_data.equals(reference_data)
     assert monitor.alert_manager.threshold == 0.5
-    assert monitor.alert_manager.recipient_email == "data.scientist@company.com"
+    assert monitor.alert_manager.recipient_email == "korirg543@gmail.com"
     
 def test_monitor_drift_detection(monitor, new_data):
     """Test the drift detection functionality."""
