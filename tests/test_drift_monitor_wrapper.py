@@ -24,7 +24,7 @@ def reference_data():
 @pytest.fixture
 def new_data():
     return pd.DataFrame({
-        'feature1': np.random.normal(0.5, 1, 50),  # Shifted distribution
+        'feature1': np.random.normal(0.5, 1, 50),  
         'feature2': np.random.normal(0, 1, 50)
     })
 
@@ -48,7 +48,7 @@ def test_initialization(mock_model, reference_data):
     monitor = DriftMonitorWrapper(
         model=mock_model,
         reference_data=reference_data,
-        alert_email="test@example.com"
+        alert_email="korirg543@gmail.com"
     )
     
     assert monitor.model == mock_model
