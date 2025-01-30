@@ -10,7 +10,7 @@ class DriftDetector:
         :param reference_data: The reference (training) data used for drift comparison.
         """
         self.reference_data = reference_data
-        self.min_samples = 2  # Minimum samples needed for drift detection
+        self.min_samples = 2  
 
     def detect_drift(self, new_data):
         """
@@ -20,83 +20,61 @@ class DriftDetector:
         """
         drift_report = {}
 
-        # Handle empty reference data
-        if self.reference_data.empty:
-            return drift_report
-
-        # Handle empty new data
         if new_data.empty:
             return drift_report
         
+        if self.reference_data.empty and not new_data.empty:
+            for column in new_data.columns:
+                if len(new_data[column]) >= self.min_samples:
+                    drift_report[column] = {
+                        "p_value": 0.0,  
+                        "drift_score": 1.0
+                    }
+            return drift_report
+
         for column in self.reference_data.columns:
             if column not in new_data.columns:
                 continue
 
-            # Check if we have enough samples in both datasets
-            if len(self.reference_data[column]) < self.min_samples or len(new_data[column]) < self.min_samples:
-                continue
+            ref_feature = self.reference_data[column]
+            new_feature = new_data[column]
 
-            # Check if the feature contains valid numeric data
-            if not self._is_valid_numeric_feature(self.reference_data[column]) or \
-               not self._is_valid_numeric_feature(new_data[column]):
-                continue
-
-            drift_result = self._detect_feature_drift(self.reference_data[column], new_data[column])
-            
-            # Only include valid results in the report
-            if drift_result is not None:
-                drift_report[column] = drift_result
+            if len(ref_feature) >= self.min_samples and len(new_feature) >= self.min_samples:
+                drift_result = self._detect_feature_drift(ref_feature, new_feature)
+                if drift_result is not None:
+                    drift_report[column] = drift_result
         
         return drift_report
 
     def _detect_feature_drift(self, ref_feature, new_feature):
         """
-        Detects drift for a single feature using the Kolmogorov-Smirnov test (for numerical data).
-        :param ref_feature: The reference feature (from training data).
-        :param new_feature: The new feature (from production data).
-        :return: A dictionary containing the p-value and drift score, or None if test fails.
+        Detects drift for a single feature using the Kolmogorov-Smirnov test.
+        :param ref_feature: The reference feature data
+        :param new_feature: The new feature data
+        :return: A dictionary containing the p-value and drift score
         """
         try:
-            # Remove NaN values before performing the test
-            ref_feature = ref_feature.dropna()
-            new_feature = new_feature.dropna()
+            if isinstance(ref_feature, (pd.Series, pd.DataFrame)):
+                ref_feature = ref_feature.values
+            if isinstance(new_feature, (pd.Series, pd.DataFrame)):
+                new_feature = new_feature.values
+            
+            ref_feature = np.asarray(ref_feature).ravel()
+            new_feature = np.asarray(new_feature).ravel()
 
-            # Check if we still have enough samples after removing NaN values
-            if len(ref_feature) < self.min_samples or len(new_feature) < self.min_samples:
-                return None
+            ref_feature = ref_feature[~np.isnan(ref_feature)]
+            new_feature = new_feature[~np.isnan(new_feature)]
 
             ks_stat, p_value = ks_2samp(ref_feature, new_feature)
             drift_score = 1 - p_value
 
             return {
-                "p_value": p_value,
-                "drift_score": drift_score
+                "p_value": float(p_value),  
+                "drift_score": float(drift_score)
             }
+            
         except Exception as e:
-            # Log the error if needed
-            # print(f"Error in drift detection: {str(e)}")
-            return None
-
-    def _is_valid_numeric_feature(self, feature):
-        """
-        Checks if a feature contains valid numeric data for drift detection.
-        :param feature: The feature to check.
-        :return: Boolean indicating if the feature is valid for drift detection.
-        """
-        try:
-            # Check if feature is numeric
-            if not pd.api.types.is_numeric_dtype(feature):
-                return False
-
-            # Check if feature has non-NaN values
-            valid_values = feature.dropna()
-            if len(valid_values) < self.min_samples:
-                return False
-
-            # Check if feature has some variation (not all same value)
-            if valid_values.nunique() < 2:
-                return False
-
-            return True
-        except:
-            return False
+            return {
+                "p_value": 0.0,  
+                "drift_score": 1.0
+            }
