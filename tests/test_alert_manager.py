@@ -27,7 +27,8 @@ def test_set_recipient_email(mock_exists, mock_file, alert_manager):
 
 @patch("smtplib.SMTP")
 @patch("builtins.open", new_callable=mock_open)
-def test_send_alert(mock_file, mock_smtp, alert_manager):
+@patch.object(AlertManager, "_load_alert_history", return_value=[])  # Mock history to start empty
+def test_send_alert(mock_history, mock_file, mock_smtp, alert_manager):
     """Test sending an alert email."""
     alert_manager.set_recipient_email("korirg543@gmail.com")
 
@@ -41,7 +42,7 @@ def test_send_alert(mock_file, mock_smtp, alert_manager):
     result = alert_manager.send_alert("Test alert message", drift_score=0.8)
 
     assert result is True
-    assert len(alert_manager.alert_history) == 1
+    assert len(alert_manager.alert_history) == 1  # Expect only 1 new alert
     assert alert_manager.alert_history[0]["status"] == "success"
 
 @patch("builtins.open", new_callable=mock_open)
