@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, Set
 import pandas as pd
 import numpy as np
 from driftmonitor.drift_detector import DriftDetector
@@ -29,8 +29,13 @@ class DriftMonitorWrapper:
             alert_threshold: Threshold for drift alerts (default: 0.5)
             monitor_name: Name for this monitoring instance
         """
+        # Validate reference data
+        if reference_data.empty:
+            raise ValueError("Reference data cannot be empty")
+            
         self.model = model
         self.reference_data = reference_data
+        self.reference_columns = set(reference_data.columns)
         self.monitor_name = monitor_name
         
         self.model_monitor = ModelMonitor(model)
@@ -46,6 +51,46 @@ class DriftMonitorWrapper:
                 logger.info(f"Alerts will be sent to {alert_email}")
             except ValueError as e:
                 logger.warning(f"Invalid email configuration: {e}")
+
+    def _validate_input_data(self, new_data: pd.DataFrame) -> None:
+        """
+        Validate input data against reference data requirements.
+        
+        Args:
+            new_data: DataFrame to validate
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        if new_data.empty:
+            raise ValueError("Input data cannot be empty")
+            
+        new_columns = set(new_data.columns)
+        
+        # Check for missing required columns
+        missing_cols = self.reference_columns - new_columns
+        if missing_cols:
+            raise ValueError(
+                f"Missing required columns: {missing_cols}. "
+                f"Expected columns: {self.reference_columns}"
+            )
+            
+        # Check for unexpected additional columns
+        extra_cols = new_columns - self.reference_columns
+        if extra_cols:
+            raise ValueError(
+                f"Unexpected columns found: {extra_cols}. "
+                f"Expected columns: {self.reference_columns}"
+            )
+            
+        # Validate data types (optional, but recommended)
+        for col in self.reference_columns:
+            if new_data[col].dtype != self.reference_data[col].dtype:
+                raise ValueError(
+                    f"Column '{col}' has incorrect dtype. "
+                    f"Expected {self.reference_data[col].dtype}, "
+                    f"got {new_data[col].dtype}"
+                )
 
     def monitor(
         self,
@@ -63,7 +108,13 @@ class DriftMonitorWrapper:
             
         Returns:
             Dict containing monitoring results
+        
+        Raises:
+            ValueError: If input validation fails or if drift is detected with raise_on_drift=True
         """
+        # Validate input data before processing
+        self._validate_input_data(new_data)
+        
         results = {
             'has_drift': False,
             'drift_detected_in': [],
