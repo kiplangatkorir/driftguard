@@ -21,7 +21,7 @@ class DriftMonitorWrapper:
     ):
         """
         Initialize drift monitoring with minimal configuration.
-
+        
         Args:
             model: The trained model to monitor
             reference_data: Training/reference data for drift comparison
@@ -32,11 +32,11 @@ class DriftMonitorWrapper:
         self.model = model
         self.reference_data = reference_data
         self.monitor_name = monitor_name
-
+        
         self.model_monitor = ModelMonitor(model)
         self.drift_detector = DriftDetector(reference_data)
         self.alert_manager = AlertManager(threshold=alert_threshold)
-
+        
         if alert_email:
             try:
                 self.alert_manager.set_recipient_email(
@@ -49,21 +49,25 @@ class DriftMonitorWrapper:
 
     def monitor(
         self,
-        new_data: pd.DataFrame,
+        new_data: Union[pd.DataFrame, np.ndarray],
         actual_labels: Optional[Union[pd.Series, np.ndarray]] = None,
         raise_on_drift: bool = False
     ) -> Dict:
         """
         Monitor new data for drift and performance degradation.
-
+        
         Args:
             new_data: New data to monitor
             actual_labels: True labels if available (for performance monitoring)
             raise_on_drift: Whether to raise an exception on detected drift
-
+            
         Returns:
             Dict containing monitoring results
         """
+        # Convert new_data to DataFrame if it's a numpy array
+        if isinstance(new_data, np.ndarray):
+            new_data = pd.DataFrame(new_data)
+
         results = {
             'has_drift': False,
             'drift_detected_in': [],
@@ -71,11 +75,14 @@ class DriftMonitorWrapper:
             'drift_scores': {}
         }
 
+        # Ensure that the columns in new_data match reference_data
         common_columns = self.reference_data.columns.intersection(new_data.columns)
         if len(common_columns) != len(self.reference_data.columns):
             logger.warning("Column mismatch between reference data and new data")
+            # Optional: Handle this by only using common columns
             new_data = new_data[common_columns]
 
+        # Detect drift for the matching columns
         drift_report = self.drift_detector.detect_drift(new_data)
 
         for feature, report in drift_report.items():
