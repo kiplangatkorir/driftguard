@@ -44,6 +44,7 @@ def test_send_alert(mock_history, mock_file, mock_smtp, alert_manager):
     assert result is True
     assert len(alert_manager.alert_history) == 1  # Expect only 1 new alert
     assert alert_manager.alert_history[0]["status"] == "success"
+    mock_file.assert_called_with('alert_history.json', 'w')  # Ensure the file is being written
 
 @patch("builtins.open", new_callable=mock_open)
 def test_check_and_alert(mock_file, alert_manager):
