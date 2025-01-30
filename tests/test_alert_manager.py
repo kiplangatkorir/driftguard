@@ -1,7 +1,7 @@
 import pytest
 import os
 import json
-from alert_manager import AlertManager  # Adjust the import if the filename is different
+from driftmonitor.alert_manager import AlertManager  
 from unittest.mock import patch, MagicMock
 
 # Test files (mocked for testing)
