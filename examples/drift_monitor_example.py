@@ -1,50 +1,59 @@
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import pandas as pd
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+import numpy as np
 from driftmonitor.drift_monitor_wrapper import DriftMonitorWrapper
-import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("DriftMonitor")
+# Load example dataset
+data = load_iris()
+X = pd.DataFrame(data.data, columns=data.feature_names)
+y = pd.Series(data.target)
 
-# Step 1: Initialize the Model and Data
-# For simplicity, we'll use a small sample dataset from sklearn
-from sklearn.datasets import make_classification
-X_train, y_train = make_classification(n_samples=100, n_features=5, random_state=42)
-X_test, y_test = make_classification(n_samples=10, n_features=5, random_state=43)
+# Split into train and test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Train a simple model
-model = RandomForestClassifier(n_estimators=100)
+model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
-# Step 2: Initialize the DriftMonitorWrapper
+# Initialize drift monitoring
 monitor = DriftMonitorWrapper(
-    model=model,  # The trained model
-    reference_data=X_train,  # Training data to check drift against
-    alert_email="korirg543@gmail.com",  # Email for drift alerts
-    alert_threshold=0.5,  # Drift threshold
+    model=model,
+    reference_data=X_train,
+    alert_email="korirg543@gmail.com",  
+    monitor_name="Iris Classifier Monitor"
 )
 
-# Step 3: Simulate New Data (e.g., production data)
-# Let's simulate some new data (e.g., data coming from production)
-new_data = pd.DataFrame(X_test, columns=[f"feature_{i}" for i in range(X_test.shape[1])])
+# Function to simulate some drift
+def add_noise(data, noise_level=0.5):
+    return data + np.random.normal(0, noise_level, data.shape)
 
-# Step 4: Monitor for Drift in the New Data
-monitor_results = monitor.monitor(new_data)
-
-# Step 5: Take Action Based on Monitoring Results
-if monitor_results["has_drift"]:
-    logger.warning(f"Drift detected in features: {monitor_results['drift_detected_in']}")
-else:
-    logger.info("No significant drift detected")
-
-# Step 6: Optionally make predictions (if no drift is detected)
-if not monitor_results["has_drift"]:
-    predictions = model.predict(new_data)
-    logger.info(f"Predictions: {predictions}")
-else:
-    logger.warning("Drift detected, predictions may not be reliable.")
-
+# Example monitoring usage
+if __name__ == "__main__":
+    # Monitor normal data
+    print("\nMonitoring normal data...")
+    results = monitor.monitor(X_test, y_test)
+    print(f"Drift detected: {results['has_drift']}")
+    print(f"Performance: {results['performance']}")
+    
+    # Monitor data with drift
+    print("\nMonitoring data with drift...")
+    X_test_drift = pd.DataFrame(
+        add_noise(X_test.values, noise_level=1.0),
+        columns=X_test.columns
+    )
+    results = monitor.monitor(X_test_drift, y_test)
+    print(f"Drift detected: {results['has_drift']}")
+    if results['has_drift']:
+        print("Drift detected in features:", results['drift_detected_in'])
+    print(f"Performance: {results['performance']}")
+    
+    # Get monitoring statistics
+    stats = monitor.get_monitoring_stats()
+    print("\nMonitoring Statistics:")
+    print(f"Total Alerts: {stats['alerts']['total_alerts']}")
+    print(f"Performance History: {stats['performance_history']}")
