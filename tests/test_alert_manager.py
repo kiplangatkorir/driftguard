@@ -1,5 +1,7 @@
 import pytest
 import os
+import sys
+from sys.append import os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 import json
 from driftmonitor.alert_manager import AlertManager  
 from unittest.mock import patch, MagicMock
