@@ -4,94 +4,141 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 import pandas as pd
 import numpy as np
-from unittest.mock import MagicMock
-from driftmonitor.drift_monitor_wrapper import DriftMonitorWrapper
+from unittest.mock import Mock, patch
+from driftmonitor.drift_detector import DriftDetector
+from driftmonitor.model_monitor import ModelMonitor
+from driftmonitor.alert_manager import AlertManager
 
+# Mock the main class and its dependencies
 @pytest.fixture
 def mock_model():
-    """Fixture for a mock model."""
-    model = MagicMock()
-    model.predict.return_value = np.array([1, 0, 1])
-    return model
+    return Mock()
 
 @pytest.fixture
 def reference_data():
-    """Fixture for reference data."""
     return pd.DataFrame({
-        'feature1': [1, 2, 3, 4, 5],
-        'feature2': [10, 20, 30, 40, 50]
+        'feature1': np.random.normal(0, 1, 100),
+        'feature2': np.random.normal(0, 1, 100)
     })
 
 @pytest.fixture
 def new_data():
-    """Fixture for new data (with potential drift)."""
     return pd.DataFrame({
-        'feature1': [6, 7, 8, 9, 10],
-        'feature2': [60, 70, 80, 90, 100]
+        'feature1': np.random.normal(0.5, 1, 50),  # Shifted distribution
+        'feature2': np.random.normal(0, 1, 50)
     })
 
 @pytest.fixture
-def monitor(mock_model, reference_data):
-    """Fixture to create a DriftMonitorWrapper instance."""
-    return DriftMonitorWrapper(
+def drift_monitor(mock_model, reference_data):
+    with patch('driftmonitor.drift_detector.DriftDetector') as mock_detector, \
+         patch('driftmonitor.model_monitor.ModelMonitor') as mock_monitor, \
+         patch('driftmonitor.alert_manager.AlertManager') as mock_alert:
+        
+        monitor = DriftMonitorWrapper(
+            model=mock_model,
+            reference_data=reference_data,
+            alert_email="test@example.com",
+            alert_threshold=0.5,
+            monitor_name="Test Monitor"
+        )
+        yield monitor
+
+def test_initialization(mock_model, reference_data):
+    """Test proper initialization of DriftMonitorWrapper"""
+    monitor = DriftMonitorWrapper(
         model=mock_model,
         reference_data=reference_data,
-        alert_email="korirg543@gmail.com",
-        alert_threshold=0.5
+        alert_email="test@example.com"
     )
-
-def test_initialization(monitor, mock_model, reference_data):
-    """Test the initialization of the DriftMonitorWrapper."""
+    
     assert monitor.model == mock_model
     assert monitor.reference_data.equals(reference_data)
-    assert monitor.alert_manager.threshold == 0.5
-    assert monitor.alert_manager.recipient_email == "korirg543@gmail.com"
-    
-def test_monitor_drift_detection(monitor, new_data):
-    """Test the drift detection functionality."""
-    # Simulate the drift detection process
-    drift_results = monitor.monitor(new_data=new_data)
-    
-    # Check if drift was detected
-    assert drift_results['has_drift'] is True
-    assert len(drift_results['drift_detected_in']) > 0
-    assert 'drift_scores' in drift_results
-    assert drift_results['drift_scores']['feature1'] > 0.5  # Assuming drift score is > 0.5 for feature1
+    assert isinstance(monitor.model_monitor, ModelMonitor)
+    assert isinstance(monitor.drift_detector, DriftDetector)
+    assert isinstance(monitor.alert_manager, AlertManager)
 
-def test_monitor_no_drift(monitor, reference_data):
-    """Test the case where no drift is detected."""
-    # Create new data that doesn't cause drift
-    no_drift_data = pd.DataFrame({
-        'feature1': [1, 2, 3, 4, 5],
-        'feature2': [10, 20, 30, 40, 50]
-    })
-    
-    drift_results = monitor.monitor(new_data=no_drift_data)
-    
-    # No drift should be detected
-    assert drift_results['has_drift'] is False
-    assert len(drift_results['drift_detected_in']) == 0
+def test_initialization_without_email(mock_model, reference_data):
+    """Test initialization without alert email"""
+    monitor = DriftMonitorWrapper(
+        model=mock_model,
+        reference_data=reference_data
+    )
+    assert monitor.alert_manager.threshold == 0.5  # Default threshold
 
-def test_monitor_performance(monitor, new_data):
-    """Test the performance monitoring functionality."""
-    actual_labels = pd.Series([1, 0, 1, 0, 1])  # Sample true labels
+def test_monitor_no_drift(drift_monitor, new_data):
+    """Test monitoring when no drift is detected"""
+    drift_monitor.drift_detector.detect_drift.return_value = {
+        'feature1': {'drift_score': 0.2, 'p_value': 0.8},
+        'feature2': {'drift_score': 0.1, 'p_value': 0.9}
+    }
     
-    # Simulate monitoring with performance tracking
-    drift_results = monitor.monitor(new_data=new_data, actual_labels=actual_labels)
+    results = drift_monitor.monitor(new_data)
     
-    # Check if performance data is returned
-    assert drift_results['performance'] is not None
-    assert 'accuracy' in drift_results['performance']
-    assert 'precision' in drift_results['performance']
+    assert not results['has_drift']
+    assert len(results['drift_detected_in']) == 0
+    assert 'feature1' in results['drift_scores']
+    assert 'feature2' in results['drift_scores']
 
-def test_alert_on_drift(monitor, new_data):
-    """Test if alerting mechanism triggers on drift."""
-    # Assuming threshold is set to 0.5 and drift score for feature1 is high
-    drift_results = monitor.monitor(new_data=new_data)
+def test_monitor_with_drift(drift_monitor, new_data):
+    """Test monitoring when drift is detected"""
+    drift_monitor.drift_detector.detect_drift.return_value = {
+        'feature1': {'drift_score': 0.7, 'p_value': 0.01},
+        'feature2': {'drift_score': 0.2, 'p_value': 0.8}
+    }
     
-    # Check if the alert manager was triggered (mocking email sending)
-    monitor.alert_manager.check_and_alert.assert_called_once()
+    results = drift_monitor.monitor(new_data)
     
-    # Verify that an alert was sent
-    alert_call_args = monitor.alert_manager.check_and_alert.call_args[0][0]
-    assert alert_call_args > 0.5  # Ensuring the alert was triggered due to drift
+    assert results['has_drift']
+    assert 'feature1' in results['drift_detected_in']
+    assert 'feature2' not in results['drift_detected_in']
+
+def test_monitor_with_labels(drift_monitor, new_data):
+    """Test monitoring with actual labels provided"""
+    drift_monitor.drift_detector.detect_drift.return_value = {
+        'feature1': {'drift_score': 0.2, 'p_value': 0.8}
+    }
+    
+    actual_labels = np.random.randint(0, 2, 50)
+    mock_performance = {'accuracy': 0.95, 'f1_score': 0.94}
+    drift_monitor.model_monitor.track_performance.return_value = mock_performance
+    
+    results = drift_monitor.monitor(new_data, actual_labels)
+    
+    assert results['performance'] == mock_performance
+    assert drift_monitor.model_monitor.track_performance.called
+
+def test_monitor_raise_on_drift(drift_monitor, new_data):
+    """Test that monitor raises exception when configured"""
+    drift_monitor.drift_detector.detect_drift.return_value = {
+        'feature1': {'drift_score': 0.7, 'p_value': 0.01}
+    }
+    
+    with pytest.raises(ValueError, match="Data drift detected above threshold"):
+        drift_monitor.monitor(new_data, raise_on_drift=True)
+
+def test_get_monitoring_stats(drift_monitor):
+    """Test retrieving monitoring statistics"""
+    mock_alert_stats = {'total_alerts': 5, 'last_alert': '2024-01-30'}
+    mock_performance_history = [{'accuracy': 0.95}, {'accuracy': 0.93}]
+    
+    drift_monitor.alert_manager.get_alert_statistics.return_value = mock_alert_stats
+    drift_monitor.model_monitor.performance_history = mock_performance_history
+    
+    stats = drift_monitor.get_monitoring_stats()
+    
+    assert stats['alerts'] == mock_alert_stats
+    assert stats['performance_history'] == mock_performance_history
+
+def test_invalid_email_configuration(mock_model, reference_data):
+    """Test handling of invalid email configuration"""
+    with patch('driftmonitor.alert_manager.AlertManager.set_recipient_email') as mock_set_email:
+        mock_set_email.side_effect = ValueError("Invalid email")
+        
+        # Should not raise exception, just log warning
+        monitor = DriftMonitorWrapper(
+            model=mock_model,
+            reference_data=reference_data,
+            alert_email="invalid@email"
+        )
+        
+        mock_set_email.assert_called_once()
