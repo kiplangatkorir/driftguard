@@ -37,12 +37,10 @@ class ModelMonitor:
         self.threshold = threshold
         self.save_dir = save_dir
         
-        # Validate metrics
         for metric in self.metrics:
             if metric not in self.SUPPORTED_METRICS:
                 raise ValueError(f"Unsupported metric: {metric}. Choose from {list(self.SUPPORTED_METRICS.keys())}")
         
-        # Initialize performance tracking
         self.performance_history = []
         self.baseline_performance = None
     
@@ -69,11 +67,9 @@ class ModelMonitor:
         predictions = self.model.predict(data)
         metrics_values = {}
         
-        # Compute all requested metrics
         for metric in self.metrics:
             metric_func = self.SUPPORTED_METRICS[metric]
             try:
-                # Special handling for ROC AUC which needs probability predictions
                 if metric == "roc_auc":
                     prob_predictions = self.model.predict_proba(data)[:, 1]
                     value = metric_func(labels, prob_predictions)
@@ -84,7 +80,6 @@ class ModelMonitor:
                 print(f"Warning: Failed to compute {metric}: {str(e)}")
                 metrics_values[metric] = None
         
-        # Store results
         performance_record = {
             "timestamp": timestamp,
             "metrics": metrics_values,
@@ -92,14 +87,11 @@ class ModelMonitor:
         }
         self.performance_history.append(performance_record)
         
-        # Set baseline if not already set
         if self.baseline_performance is None:
             self.baseline_performance = metrics_values
         
-        # Check for performance degradation
         self._check_degradation(metrics_values)
         
-        # Save results if directory is specified
         if self.save_dir:
             self._save_results()
             
@@ -127,7 +119,6 @@ class ModelMonitor:
             
         filepath = os.path.join(self.save_dir, "monitoring_history.json")
         
-        # Convert datetime objects to strings for JSON serialization
         history_serializable = []
         for record in self.performance_history:
             record_copy = record.copy()
@@ -151,7 +142,6 @@ class ModelMonitor:
             "metrics": {}
         }
         
-        # Calculate statistics for each metric
         for metric in self.metrics:
             values = [record["metrics"][metric] 
                      for record in self.performance_history 
