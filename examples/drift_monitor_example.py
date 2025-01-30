@@ -1,6 +1,9 @@
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from driftmonitor import DriftMonitorWrapper
+from driftmonitor.drift_monitor_wrapper import DriftMonitorWrapper
 import logging
 
 # Set up logging
