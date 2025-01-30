@@ -28,16 +28,21 @@ def test_send_alert(mock_file, mock_smtp, alert_manager):
     """Test sending an alert email."""
     alert_manager.set_recipient_email("korirg543@gmail.com")
 
+    # Clear any existing alert history to ensure a fresh test
+    alert_manager.alert_history = []
+
+    # Mock SMTP server
     mock_server = mock_smtp.return_value
     mock_server.starttls.return_value = True
     mock_server.login.return_value = True
     mock_server.sendmail.return_value = True
 
+    # Send an alert
     result = alert_manager.send_alert("Test alert message", drift_score=0.8)
 
     assert result is True
-    assert len(alert_manager.alert_history) == 1
-    assert alert_manager.alert_history[0]["status"] == "success"
+    assert len(alert_manager.alert_history) == 1  # Expect only one new alert
+    assert alert_manager.alert_history["status"] == "success"
 
 @patch("builtins.open", new_callable=mock_open)
 def test_check_and_alert(mock_file, alert_manager):
