@@ -32,7 +32,7 @@ def drift_monitor(sample_data, mock_model):
     return DriftMonitorWrapper(
         model=mock_model,
         reference_data=sample_data,
-        alert_email="korirg543@gmail.com",
+        alert_email=".com",
         alert_threshold=0.5,
         monitor_name="Test Monitor"
     )
@@ -126,17 +126,27 @@ def test_empty_dataframe_handling(drift_monitor):
     """Test handling of empty DataFrame input"""
     empty_df = pd.DataFrame()
     
-    # Monitor should return drift detected for empty DataFrame
-    results = drift_monitor.monitor(empty_df)
-    assert results['has_drift']  # Empty DataFrame should be considered as drift
-    assert len(results['drift_scores']) == 0  # No features to score
+    with pytest.raises((ValueError, AssertionError), match="Empty DataFrame"):
+        drift_monitor.monitor(empty_df)
 
 def test_different_column_handling(drift_monitor, sample_data):
     """Test handling of DataFrame with different columns"""
+    # Create a DataFrame with missing required columns
     different_df = pd.DataFrame({
         'new_feature': np.random.normal(0, 1, 100),
         'feature2': np.random.normal(0, 1, 100)
     })
     
-    with pytest.raises(ValueError):
+    # Expect ValueError or AssertionError for mismatched columns
+    with pytest.raises((ValueError, AssertionError), match="Column mismatch"):
         drift_monitor.monitor(different_df)
+        
+def test_missing_required_columns(drift_monitor, sample_data):
+    """Test handling of DataFrame with missing required columns"""
+    # Create DataFrame missing some columns from reference data
+    missing_cols_df = pd.DataFrame({
+        'feature1': np.random.normal(0, 1, 100)
+    })
+    
+    with pytest.raises((ValueError, AssertionError), match="Missing required columns"):
+        drift_monitor.monitor(missing_cols_df)
