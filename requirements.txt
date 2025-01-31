@@ -9,4 +9,3 @@ python-dotenv
 secure-smtplib
 json
 pytest
-trequests
