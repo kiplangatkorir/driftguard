@@ -114,7 +114,6 @@ async def predict(data: dict):
         "drift_scores": monitor_results['drift_scores']
     }
 ```
-
 This is just one way you can use DriftMonitor. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
 
 ## Contributing  
@@ -122,9 +121,6 @@ Want to contribute? Awesome! Here’s how you can help:
 1. Fork the repository.
 2. Make your changes.
 3. Submit a pull request!
-
----
-
 ## License  
 DriftMonitor is licensed under the MIT License. You can find the full text in the [LICENSE](LICENSE) file.
 
