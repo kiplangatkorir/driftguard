@@ -32,7 +32,7 @@ def drift_monitor(sample_data, mock_model):
     return DriftMonitorWrapper(
         model=mock_model,
         reference_data=sample_data,
-        alert_email=".com",
+        alert_email="korirg543@gmail.com",
         alert_threshold=0.5,
         monitor_name="Test Monitor"
     )
@@ -46,7 +46,7 @@ def test_initialization(sample_data, mock_model):
     
     assert monitor.model == mock_model
     assert monitor.reference_data.equals(sample_data)
-    assert monitor.monitor_name == "Model Monitor"  # default name
+    assert monitor.monitor_name == "Model Monitor"  
     assert isinstance(monitor.model_monitor, ModelMonitor)
     assert isinstance(monitor.drift_detector, DriftDetector)
     assert isinstance(monitor.alert_manager, AlertManager)
