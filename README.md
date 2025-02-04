@@ -1,12 +1,12 @@
 
-# **Drift Monitor**
+# **Drift Guard**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
 **Version:** 0.1.0  
 
-**DriftMonitor** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.
+**DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.
 
-## Why DriftMonitor?  
+## Why DriftGuard?  
 Models are powerful, but they aren't immune to change. Data drift and concept drift are inevitable as the world changes around you. DriftMonitor helps by automatically monitoring your model's predictions and data features to ensure they're still working as expected.  
 
 **Concept drift** occurs when the underlying relationship between input data and predictions changes over time. **Data drift** happens when the distribution of your input data shifts, which can degrade model performance.  
@@ -21,20 +21,20 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 - **Easy to Integrate**: No complicated setup – just plug it into your existing machine learning pipeline.  
 
 ## Install  
-To install DriftMonitor, simply run:
+To install DriftGuard, simply run:
 
 ```bash
-pip install driftmonitor
+pip install driftguard
 ```
 
 ## Usage  
 
-Here’s a simple example of how to use DriftMonitor with a model.
+Here’s a simple example of how to use DriftGuard with a model.
 
 ### Example: Monitoring Model Performance
 
 ```python
-from driftmonitor import DriftMonitorWrapper
+from driftguard import Wrapper
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -53,7 +53,7 @@ model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
 # Initialize DriftMonitor
-monitor = DriftMonitorWrapper(
+monitor = Wrapper(
     model=model,
     reference_data=X_train,
     alert_email="alerts@company.com",
@@ -91,12 +91,12 @@ DriftMonitor uses these techniques (and more) to detect when your model or data 
 ```python
 from fastapi import FastAPI
 import pandas as pd
-from driftmonitor import DriftMonitorWrapper
+from driftguard import Wrapper
 
 app = FastAPI()
 
 # Initialize DriftMonitor
-drift_monitor = DriftMonitorWrapper(
+drift_monitor = Wrapper(
     model=trained_model,
     reference_data=training_data,
     alert_email="ml-team@company.com"
@@ -114,7 +114,7 @@ async def predict(data: dict):
         "drift_scores": monitor_results['drift_scores']
     }
 ```
-This is just one way you can use DriftMonitor. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
+This is just one way you can use DriftGuard. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
 
 ## Contributing  
 Want to contribute? Awesome! Here’s how you can help:
@@ -122,24 +122,24 @@ Want to contribute? Awesome! Here’s how you can help:
 2. Make your changes.
 3. Submit a pull request!
 ## License  
-DriftMonitor is licensed under the MIT License. You can find the full text in the [LICENSE](LICENSE) file.
+DriftGuard is licensed under the MIT License. You can find the full text in the [LICENSE](LICENSE) file.
 
 ## Cite This Work  
-If you use DriftMonitor in your research, please cite it like this:
+If you use DriftGuard in your research, please cite it like this:
 
 ```bibtex
 @software{korir2025driftmonitor,
   author = {Kiplangat Korir},
-  title = {Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
+  title = {Drift Guard: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
   year = {2025},
-  url = {https://github.com/kiplangatkorir/driftmonitor},
+  url = {https://github.com/kiplangatkorir/driftguard},
   version = {0.1.0},
   license = {MIT}
 }
 ```
 
 Or include this text:
-> Korir, Kiplangat. (2025). *Drift Detection Library: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftmonitor.
+> Korir, Kiplangat. (2025). *Drift Guard: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftguard.
 
 ## Contact  
 Have any questions? Want to give feedback? Reach out to me at:
