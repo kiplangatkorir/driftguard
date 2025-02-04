@@ -4,10 +4,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from driftmonitor.drift_detector import DriftDetector
-from driftmonitor.model_monitor import ModelMonitor
-from driftmonitor.alert_manager import AlertManager
-from driftmonitor.version_manager import VersionManager
+from driftguard.drift_detector import DriftDetector
+from driftguard.model_monitor import ModelMonitor
+from driftguard.alert_manager import AlertManager
+from driftguard.version_manager import VersionManager
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_wine

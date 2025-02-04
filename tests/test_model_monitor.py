@@ -10,7 +10,7 @@ import tempfile
 from sklearn.dummy import DummyClassifier
 from sklearn.datasets import make_classification
 
-from driftmonitor.model_monitor import ModelMonitor  
+from driftguard.model_monitor import ModelMonitor  
 
 @pytest.fixture
 def dummy_binary_data():

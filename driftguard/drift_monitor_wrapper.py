@@ -3,9 +3,9 @@ import logging
 from typing import Optional, Union, Dict, Set
 import pandas as pd
 import numpy as np
-from driftmonitor.drift_detector import DriftDetector
-from driftmonitor.model_monitor import ModelMonitor
-from driftmonitor.alert_manager import AlertManager
+from driftguard.drift_detector import DriftDetector
+from driftguard.model_monitor import ModelMonitor
+from driftguard.alert_manager import AlertManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('DriftMonitor')

@@ -6,7 +6,7 @@ import json
 import os
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from driftmonitor.alert_manager import AlertManager  
+from driftguard.alert_manager import AlertManager  
 
 @pytest.fixture
 def alert_manager():

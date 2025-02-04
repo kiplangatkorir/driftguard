@@ -4,7 +4,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 import numpy as np
 import pandas as pd
-from driftmonitor.drift_detector import DriftDetector
+from driftguard.drift_detector import DriftDetector
 
 @pytest.fixture
 def reference_data():

@@ -5,10 +5,10 @@ import pytest
 import pandas as pd
 import numpy as np
 from unittest.mock import Mock, patch
-from driftmonitor.drift_detector import DriftDetector
-from driftmonitor.model_monitor import ModelMonitor
-from driftmonitor.alert_manager import AlertManager
-from driftmonitor.drift_monitor_wrapper import DriftMonitorWrapper
+from driftguard.drift_detector import DriftDetector
+from driftguard.model_monitor import ModelMonitor
+from driftguard.alert_manager import AlertManager
+from driftguard.drift_monitor_wrapper import DriftMonitorWrapper
 
 # Fixture for sample data
 @pytest.fixture
