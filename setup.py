@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="driftguard",  
-    version="0.1.0",  
+    version="0.1.1",  
     author="Kiplangat Korir",
     author_email="korirkiplangat22@gmail.com",
     description="A lightweight Python library for monitoring data and concept drift in machine learning models.",
