@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="driftmonitor",  
+    name="driftdetector",  
     version="0.1.0",  
     author="Kiplangat Korir",
     author_email="korirkiplangat22@gmail.com",
