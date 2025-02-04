@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import numpy as np
-from driftguard.wrapper import DriftMonitorWrapper
+from driftguard.wrapper import Wrapper
 
 # Load example dataset
 data = load_iris()
@@ -21,7 +21,7 @@ model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
 # Initialize drift monitoring
-monitor = DriftMonitorWrapper(
+monitor = Wrapper(
     model=model,
     reference_data=X_train,
     alert_email="korirg543@gmail.com",  
