@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from driftguard.drift_detector import DriftDetector
 from driftguard.model_monitor import ModelMonitor
 from driftguard.alert_manager import AlertManager
-from driftguard.drift_monitor_wrapper import DriftMonitorWrapper
+from driftguard.wrapper import DriftMonitorWrapper
 
 # Fixture for sample data
 @pytest.fixture

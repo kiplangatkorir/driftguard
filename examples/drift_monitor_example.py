@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import numpy as np
-from driftguard.drift_monitor_wrapper import DriftMonitorWrapper
+from driftguard.wrapper import DriftMonitorWrapper
 
 # Load example dataset
 data = load_iris()
