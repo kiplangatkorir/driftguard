@@ -1,21 +1,21 @@
 # DriftMonitor Documentation
 
 ## Overview
-DriftMonitor is a Python package that helps you monitor machine learning models in production for data drift and performance degradation. It provides automated monitoring, drift detection, and alerting capabilities with minimal setup required.
+Drift Guard is a Python package that helps you monitor machine learning models in production for data drift and performance degradation. It provides automated monitoring, drift detection, and alerting capabilities with minimal setup required.
 
 ## Installation
 
 ```bash
-pip install driftmonitor
+pip install driftguard
 ```
 
 ## Quick Start
 
 ```python
-from driftmonitor import DriftMonitorWrapper
+from driftguard import Wrapper
 
 # Initialize monitoring
-monitor = DriftMonitorWrapper(
+monitor = Wrapper(
     model=your_model,
     reference_data=training_data,
     alert_email="your.email@company.com"
@@ -27,13 +27,13 @@ results = monitor.monitor(new_data, actual_labels)
 
 ## Core Components
 
-### DriftMonitorWrapper
+### Wrapper
 The main interface for monitoring your models. Combines drift detection, performance monitoring, and alerting in a single, easy-to-use package.
 
 ```python
-from driftmonitor import DriftMonitorWrapper
+from driftguard import Wrapper
 
-monitor = DriftMonitorWrapper(
+monitor = Wrapper(
     model=trained_model,              # Your trained model
     reference_data=training_data,     # Reference data (usually training data)
     alert_email="user@company.com",   # Email for alerts (optional)
@@ -94,7 +94,7 @@ Returns:
 Detects statistical drift between reference and new data.
 
 ```python
-from driftmonitor.drift_detector import DriftDetector
+from driftguard.drift_detector import DriftDetector
 
 detector = DriftDetector(reference_data=training_data)
 drift_report = detector.detect_drift(new_data)
@@ -104,7 +104,7 @@ drift_report = detector.detect_drift(new_data)
 Tracks model performance over time.
 
 ```python
-from driftmonitor.model_monitor import ModelMonitor
+from driftguard.model_monitor import ModelMonitor
 
 monitor = ModelMonitor(model)
 performance = monitor.track_performance(data, labels)
@@ -114,7 +114,7 @@ performance = monitor.track_performance(data, labels)
 Handles email alerts when drift or performance issues are detected.
 
 ```python
-from driftmonitor.alert_manager import AlertManager
+from driftguard.alert_manager import AlertManager
 
 alerter = AlertManager(threshold=0.5)
 alerter.set_recipient_email("user@company.com")
@@ -125,11 +125,11 @@ alerter.check_and_alert(drift_score=0.7, message="High drift detected!")
 
 ### Basic Production Pipeline
 ```python
-from driftmonitor import DriftMonitorWrapper
+from driftguard import Wrapper
 
 def production_pipeline(new_data, actual_labels=None):
     # Initialize monitoring (do this once)
-    monitor = DriftMonitorWrapper(
+    monitor = Wrapper(
         model=production_model,
         reference_data=training_data,
         alert_email="alerts@company.com"
@@ -149,7 +149,7 @@ def production_pipeline(new_data, actual_labels=None):
 ### Batch Processing
 ```python
 def batch_monitoring():
-    monitor = DriftMonitorWrapper(
+    monitor = Wrapper(
         model=model,
         reference_data=reference_data,
         alert_email="team@company.com"
