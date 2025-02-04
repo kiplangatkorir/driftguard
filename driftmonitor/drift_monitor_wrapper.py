@@ -67,7 +67,6 @@ class DriftMonitorWrapper:
             
         new_columns = set(new_data.columns)
         
-        # Check for missing required columns
         missing_cols = self.reference_columns - new_columns
         if missing_cols:
             raise ValueError(
@@ -75,7 +74,6 @@ class DriftMonitorWrapper:
                 f"Expected columns: {self.reference_columns}"
             )
             
-        # Check for unexpected additional columns
         extra_cols = new_columns - self.reference_columns
         if extra_cols:
             raise ValueError(
@@ -83,7 +81,6 @@ class DriftMonitorWrapper:
                 f"Expected columns: {self.reference_columns}"
             )
             
-        # Validate data types (optional, but recommended)
         for col in self.reference_columns:
             if new_data[col].dtype != self.reference_data[col].dtype:
                 raise ValueError(
@@ -112,7 +109,6 @@ class DriftMonitorWrapper:
         Raises:
             ValueError: If input validation fails or if drift is detected with raise_on_drift=True
         """
-        # Validate input data before processing
         self._validate_input_data(new_data)
         
         results = {
