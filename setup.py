@@ -8,7 +8,7 @@ setup(
     description="A lightweight Python library for monitoring data and concept drift in machine learning models.",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/kiplangatkorir/driftmonitor",  
+    url="https://github.com/kiplangatkorir/driftguard",  
     packages=find_packages(),  
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -21,11 +21,16 @@ setup(
         "scikit-learn",
         "pandas",
         "scipy",
+        "python-dotenv",  
         "matplotlib",  
     ],
     entry_points={  
         'console_scripts': [
             'driftmonitor=driftmonitor.cli:main',
         ],
+    },
+    include_package_data=True,  
+    package_data={
+        "": ["*.env"],  
     },
 )
