@@ -8,7 +8,7 @@ from driftguard.model_monitor import ModelMonitor
 from driftguard.alert_manager import AlertManager
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('DriftMonitor')
+logger = logging.getLogger('DriftGuard')
 
 class Wrapper:
     def __init__(
