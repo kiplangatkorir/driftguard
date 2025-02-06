@@ -6,6 +6,9 @@ import numpy as np
 from driftguard.drift_detector import DriftDetector
 from driftguard.model_monitor import ModelMonitor
 from driftguard.alert_manager import AlertManager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('DriftGuard')
