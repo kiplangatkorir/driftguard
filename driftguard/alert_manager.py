@@ -36,7 +36,7 @@ class AlertManager:
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
         self.sender_email = "driftguardalerts@gmail.com"  
-        self.sender_password = os.getenv('DRIFTGUARD_EMAIL_PASSWORD')  
+        self.sender_password = "wruw inob gxvc yypi"  
 
         self.threshold = threshold
         self.alert_history_file = alert_history_file
