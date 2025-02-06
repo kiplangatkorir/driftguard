@@ -252,3 +252,24 @@ class AlertManager:
                 drift_score=drift_score
             )
         return False
+
+    def get_alert_statistics(self) -> Dict:
+        """
+        Returns statistics about sent alerts.
+        
+        Returns:
+            Dict containing alert statistics.
+        """
+        return {
+            "total_alerts": len(self.alert_history),
+            "successful_alerts": sum(
+                1 for alert in self.alert_history
+                if alert["status"] == "success"
+            ),
+            "failed_alerts": sum(
+                1 for alert in self.alert_history
+                if alert["status"] == "failed"
+            ),
+            "last_alert_time": self.last_alert_time,
+            "alert_count_today": self.alert_count
+        }
