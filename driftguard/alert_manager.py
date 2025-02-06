@@ -2,18 +2,19 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
-from dotenv import load_dotenv
 import logging
-from datetime import datetime
-from typing import Optional, Dict, List
 import json
 import re
+from datetime import datetime
+from typing import Optional, Dict, List
 
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('AlertManager')
+
 
 class AlertManager:
     def __init__(
@@ -30,37 +31,28 @@ class AlertManager:
             alert_history_file: File to store alert history.
             recipient_config_file: File to store recipient configuration.
         """
-        load_dotenv()
-        
-        self.smtp_server = os.getenv('SMTP_SERVER', "smtp.gmail.com")
-        self.smtp_port = int(os.getenv('SMTP_PORT', "587"))
-        self.sender_email = os.getenv('SENDER_EMAIL')
-        self.sender_password = os.getenv('SENDER_PASSWORD')
-        
+        self.smtp_server = "smtp.gmail.com"
+        self.smtp_port = 587
+        self.sender_email = "driftguardalerts@gmail.com"  # Fixed sender email
+        self.sender_password = os.getenv('DRIFTGUARD_EMAIL_PASSWORD')  # Store in env
+
         self.threshold = threshold
         self.alert_history_file = alert_history_file
         self.recipient_config_file = recipient_config_file
         self.alert_count = 0
         self.last_alert_time = None
-        
+
         self._validate_system_config()
-        
+
         self.alert_history = self._load_alert_history()
         self.recipient_config = self._load_recipient_config()
 
     def _validate_system_config(self) -> None:
-        """Validates the system email configuration settings."""
-        missing_configs = []
-        
-        if not self.sender_email:
-            missing_configs.append("SENDER_EMAIL")
+        """Validates system email configuration settings."""
         if not self.sender_password:
-            missing_configs.append("SENDER_PASSWORD")
-            
-        if missing_configs:
             raise ValueError(
-                f"Missing system configuration(s): {', '.join(missing_configs)}. "
-                "Please ensure these are set in your .env file."
+                "Missing system configuration: DRIFTGUARD_EMAIL_PASSWORD. "
+                "Please set this in your environment variables."
             )
 
     def _validate_email(self, email: str) -> bool:
@@ -74,15 +66,8 @@ class AlertManager:
             bool: True if email format is valid, False otherwise.
         """
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, email))
 
-        if not re.match(pattern, email):
-            return False
-        
-        local_part, domain_part = email.rsplit('@', 1)
-        if ".." in domain_part:
-            return False
-        
-        return True
     def set_recipient_email(self, email: str, name: Optional[str] = None) -> bool:
         """
         Sets or updates the recipient's email configuration.
@@ -99,13 +84,13 @@ class AlertManager:
         """
         if not self._validate_email(email):
             raise ValueError("Invalid email format")
-            
+
         self.recipient_config = {
             "email": email,
             "name": name,
             "last_updated": datetime.now().isoformat()
         }
-        
+
         try:
             with open(self.recipient_config_file, 'w') as f:
                 json.dump(self.recipient_config, f, indent=2)
@@ -156,7 +141,7 @@ class AlertManager:
 
     def send_alert(self, message: str, drift_score: Optional[float] = None) -> bool:
         """
-        Sends an alert message via email with enhanced error handling and logging.
+        Sends an alert message via email.
         
         Args:
             message: The alert message.
@@ -173,18 +158,18 @@ class AlertManager:
                 "No recipient email configured. "
                 "Please call set_recipient_email() first."
             )
-            
+
         recipient_email = self.recipient_config['email']
         recipient_name = self.recipient_config.get('name', '')
         current_time = datetime.now()
-        
+
         alert_details = {
             "timestamp": current_time.isoformat(),
             "message": message,
             "drift_score": drift_score,
             "recipient": recipient_email
         }
-        
+
         try:
             msg = MIMEMultipart()
             msg['From'] = self.sender_email
@@ -209,7 +194,7 @@ class AlertManager:
             Total Alerts Today: {self.alert_count + 1}
             Last Alert: {self.last_alert_time if self.last_alert_time else 'None'}
             """
-            
+
             body = MIMEText(body_text, 'plain')
             msg.attach(body)
 
@@ -222,12 +207,12 @@ class AlertManager:
             self.alert_count += 1
             self.last_alert_time = current_time
             alert_details["status"] = "success"
-            
+
             logger.info(f"Alert sent successfully to {recipient_email}")
-            
+
             self.alert_history.append(alert_details)
             self._save_alert_history()
-            
+
             return True
 
         except Exception as e:
@@ -235,7 +220,7 @@ class AlertManager:
             alert_details["error"] = str(e)
             self.alert_history.append(alert_details)
             self._save_alert_history()
-            
+
             logger.error(f"Failed to send alert: {e}")
             return False
 
@@ -257,7 +242,7 @@ class AlertManager:
             bool: True if alert was sent, False otherwise.
         """
         threshold = custom_threshold if custom_threshold is not None else self.threshold
-        
+
         if drift_score > threshold:
             default_message = (
                 f"Drift detected! Score: {drift_score:.3f} exceeds "
@@ -268,24 +253,3 @@ class AlertManager:
                 drift_score=drift_score
             )
         return False
-
-    def get_alert_statistics(self) -> Dict:
-        """
-        Returns statistics about sent alerts.
-        
-        Returns:
-            Dict containing alert statistics.
-        """
-        return {
-            "total_alerts": len(self.alert_history),
-            "successful_alerts": sum(
-                1 for alert in self.alert_history
-                if alert["status"] == "success"
-            ),
-            "failed_alerts": sum(
-                1 for alert in self.alert_history
-                if alert["status"] == "failed"
-            ),
-            "last_alert_time": self.last_alert_time,
-            "alert_count_today": self.alert_count
-        }
