@@ -15,7 +15,7 @@ class DriftDetector:
         :param reference_data: The reference (training) data used for drift comparison.
         """
         self.reference_data = reference_data
-        self.min_samples = max(10, len(self.reference_data) * 0.01)  # At least 1% of reference data
+        self.min_samples = max(10, len(self.reference_data) * 0.01)  
     
     def detect_drift(self, new_data):
         """
@@ -42,9 +42,9 @@ class DriftDetector:
             new_feature = new_data[column]
             
             if len(ref_feature) >= self.min_samples and len(new_feature) >= self.min_samples:
-                if ref_feature.dtype == 'O' or ref_feature.nunique() < 10:  # Categorical feature
+                if ref_feature.dtype == 'O' or ref_feature.nunique() < 10:  
                     return column, self._detect_categorical_drift(ref_feature, new_feature)
-                else:  # Numerical feature
+                else:  
                     return column, self._detect_feature_drift(ref_feature, new_feature)
             return None
         
