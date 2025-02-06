@@ -8,7 +8,6 @@ import re
 from datetime import datetime
 from typing import Optional, Dict, List
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -33,8 +32,8 @@ class AlertManager:
         """
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
-        self.sender_email = "driftguardalerts@gmail.com"  # Fixed sender email
-        self.sender_password = os.getenv('DRIFTGUARD_EMAIL_PASSWORD')  # Store in env
+        self.sender_email = "driftguardalerts@gmail.com"  
+        self.sender_password = os.getenv('DRIFTGUARD_EMAIL_PASSWORD')  
 
         self.threshold = threshold
         self.alert_history_file = alert_history_file
