@@ -117,7 +117,7 @@ async def predict(data: dict):
 This is just one way you can use DriftGuard. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
 
 ## Contributing  
-Want to contribute? Awesome! Here’s how you can help:
+Want to contribute? Awesome! We have alot of issues. Here’s how you can help:
 1. Fork the repository.
 2. Make your changes.
 3. Submit a pull request!
