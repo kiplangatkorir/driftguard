@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
 **Version:** 0.1.4
 
-**DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.
+**DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results. 
 
 ## Why DriftGuard?  
 Models are powerful, but they aren't immune to change. Data drift and concept drift are inevitable as the world changes around you. DriftGuard helps by automatically monitoring your model's predictions and data features to ensure they're still working as expected.  
