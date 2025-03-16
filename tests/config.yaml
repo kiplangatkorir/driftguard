@@ -1,24 +1,28 @@
-project_name: test_project
-model_type: classification
+version: "0.1.3"
+project_name: "test_project"
 
-metrics:
-  - name: accuracy
-    threshold: 0.1
-  - name: f1
-    threshold: 0.1
-  - name: roc_auc
-    threshold: 0.15
+storage:
+  type: "local"
+  path: "./data"
+  retention_days: 30
 
 drift:
-  method: ks_test
+  method: "ks_test"
   threshold: 0.05
   window_size: 1000
 
-alerts:
-  email_enabled: false
-  slack_enabled: false
+monitor:
+  metrics:
+    - "accuracy"
+    - "f1"
+    - "roc_auc"
+  window_size: 1000
+  performance_threshold: 0.1
 
-storage:
-  type: local
-  path: ./test_storage
-  retention_days: 7
+alerts:
+  enabled: true
+  channels:
+    - "email"
+  email_recipients:
+    - "test@example.com"
+  min_interval_minutes: 60

@@ -1,166 +1,61 @@
 """
 Configuration management for DriftGuard using Pydantic v2.
-Handles loading and validation of configuration from YAML and environment variables.
 """
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 from pathlib import Path
 import yaml
-import os
-from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
+from enum import Enum
 import logging
 
 logger = logging.getLogger(__name__)
 
-class AlertConfig(BaseModel):
-    """Alert configuration settings"""
-    model_config = ConfigDict(extra='forbid')
-    
-    enabled: bool = Field(default=True, description="Enable/disable alerts")
-    email_recipients: List[str] = Field(default_factory=list, description="List of email recipients")
-    slack_webhook: Optional[str] = Field(default=None, description="Slack webhook URL")
-    alert_threshold: float = Field(
-        default=0.05,
-        ge=0.0,
-        le=1.0,
-        description="Alert threshold for drift detection"
-    )
-    
-    @field_validator('email_recipients')
-    @classmethod
-    def validate_emails(cls, emails: List[str]) -> List[str]:
-        """Validate email addresses"""
-        for email in emails:
-            if '@' not in email or '.' not in email:
-                raise ValueError(f"Invalid email address: {email}")
-        return emails
+class DriftMethod(str, Enum):
+    """Supported drift detection methods"""
+    KS_TEST = "ks_test"
+    JSD = "jensen_shannon"
+    PSI = "psi"
 
 class StorageConfig(BaseModel):
-    """Storage configuration settings"""
-    model_config = ConfigDict(extra='forbid')
-    
-    path: str = Field(
-        default="./storage",
-        description="Path to storage directory"
-    )
-    retention_days: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="Number of days to retain data"
-    )
-    compression: bool = Field(
-        default=True,
-        description="Enable data compression"
-    )
-    
-    @field_validator('path')
-    @classmethod
-    def validate_path(cls, path: str) -> str:
-        """Validate storage path"""
-        path_obj = Path(path)
-        if not path_obj.parent.exists():
-            raise ValueError(f"Parent directory does not exist: {path_obj.parent}")
-        return str(path_obj.absolute())
-
-class MonitorConfig(BaseModel):
-    """Model monitoring configuration"""
-    model_config = ConfigDict(extra='forbid')
-    
-    metrics: List[str] = Field(
-        default=["accuracy", "f1_score"],
-        description="List of metrics to monitor"
-    )
-    window_size: int = Field(
-        default=1000,
-        ge=10,
-        description="Window size for monitoring"
-    )
-    batch_size: int = Field(
-        default=100,
-        ge=1,
-        description="Batch size for processing"
-    )
-    
-    @field_validator('metrics')
-    @classmethod
-    def validate_metrics(cls, metrics: List[str]) -> List[str]:
-        """Validate metric names"""
-        valid_metrics = {
-            "accuracy", "precision", "recall", "f1_score",
-            "roc_auc", "mse", "rmse", "mae"
-        }
-        for metric in metrics:
-            if metric not in valid_metrics:
-                raise ValueError(
-                    f"Invalid metric: {metric}. "
-                    f"Valid metrics: {valid_metrics}"
-                )
-        return metrics
+    """Storage configuration"""
+    type: str = Field(default="local", description="Storage type (local, s3)")
+    path: str = Field(default="./data", description="Storage path")
+    retention_days: int = Field(default=30, description="Data retention period in days")
 
 class DriftConfig(BaseModel):
     """Drift detection configuration"""
-    model_config = ConfigDict(extra='forbid')
-    
-    method: str = Field(
-        default="ks_test",
-        description="Drift detection method"
+    method: DriftMethod = Field(default=DriftMethod.KS_TEST, description="Drift detection method")
+    threshold: float = Field(default=0.05, description="Drift detection threshold")
+    window_size: int = Field(default=1000, description="Window size for drift detection")
+    reference_update_frequency: Optional[int] = Field(default=None, description="Auto-update reference data frequency")
+
+class MonitorConfig(BaseModel):
+    """Model monitoring configuration"""
+    metrics: List[str] = Field(
+        default=["accuracy", "f1", "roc_auc"],
+        description="Performance metrics to track"
     )
-    threshold: float = Field(
-        default=0.05,
-        ge=0.0,
-        le=1.0,
-        description="Drift detection threshold"
-    )
-    features: Optional[List[str]] = Field(
-        default=None,
-        description="Features to monitor for drift"
-    )
-    
-    @field_validator('method')
-    @classmethod
-    def validate_method(cls, method: str) -> str:
-        """Validate drift detection method"""
-        valid_methods = {"ks_test", "jsd", "psi"}
-        if method not in valid_methods:
-            raise ValueError(
-                f"Invalid drift detection method: {method}. "
-                f"Valid methods: {valid_methods}"
-            )
-        return method
+    window_size: int = Field(default=1000, description="Window size for metrics")
+    performance_threshold: float = Field(default=0.1, description="Performance degradation threshold")
+
+class AlertConfig(BaseModel):
+    """Alert configuration"""
+    enabled: bool = Field(default=True, description="Enable/disable alerts")
+    channels: List[str] = Field(default=["email"], description="Alert channels")
+    email_recipients: Optional[List[str]] = Field(default=None, description="Email recipients")
+    min_interval_minutes: int = Field(default=60, description="Minimum time between alerts")
 
 class DriftGuardConfig(BaseModel):
     """Main configuration for DriftGuard"""
-    model_config = ConfigDict(extra='forbid')
-    
-    version: str = Field(
-        default="0.1.3",
-        description="DriftGuard version"
-    )
-    project_name: str = Field(
-        description="Name of the monitoring project"
-    )
-    model_id: str = Field(
-        description="Unique identifier for the model"
-    )
-    alerts: AlertConfig = Field(
-        default_factory=AlertConfig,
-        description="Alert configuration"
-    )
-    storage: StorageConfig = Field(
-        default_factory=StorageConfig,
-        description="Storage configuration"
-    )
-    monitor: MonitorConfig = Field(
-        default_factory=MonitorConfig,
-        description="Monitoring configuration"
-    )
-    drift: DriftConfig = Field(
-        default_factory=DriftConfig,
-        description="Drift detection configuration"
-    )
+    version: str = Field(default="0.1.3", description="DriftGuard version")
+    project_name: str = Field(default="default", description="Project name")
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+    drift: DriftConfig = Field(default_factory=DriftConfig)
+    monitor: MonitorConfig = Field(default_factory=MonitorConfig)
+    alerts: AlertConfig = Field(default_factory=AlertConfig)
     
     @classmethod
-    def from_yaml(cls, path: Union[str, Path]) -> "DriftGuardConfig":
+    def from_yaml(cls, path: Union[str, Path]) -> 'DriftGuardConfig':
         """Load configuration from YAML file"""
         try:
             with open(path, 'r') as f:
@@ -170,74 +65,71 @@ class DriftGuardConfig(BaseModel):
             logger.error(f"Failed to load config from {path}: {str(e)}")
             raise
     
-    @classmethod
-    def from_env(cls) -> "DriftGuardConfig":
-        """Load configuration from environment variables"""
-        env_prefix = "DRIFTGUARD_"
-        config_dict = {}
-        
-        # Map environment variables to config structure
-        env_mapping = {
-            "PROJECT_NAME": "project_name",
-            "MODEL_ID": "model_id",
-            "ALERT_ENABLED": "alerts.enabled",
-            "ALERT_EMAILS": "alerts.email_recipients",
-            "ALERT_SLACK": "alerts.slack_webhook",
-            "STORAGE_PATH": "storage.path",
-            "RETENTION_DAYS": "storage.retention_days",
-            "DRIFT_METHOD": "drift.method",
-            "DRIFT_THRESHOLD": "drift.threshold"
-        }
-        
-        for env_key, config_key in env_mapping.items():
-            env_value = os.getenv(env_prefix + env_key)
-            if env_value is not None:
-                # Handle special cases
-                if env_key == "ALERT_EMAILS":
-                    env_value = env_value.split(",")
-                elif env_key in ["ALERT_ENABLED"]:
-                    env_value = env_value.lower() == "true"
-                elif env_key in ["RETENTION_DAYS"]:
-                    env_value = int(env_value)
-                elif env_key in ["DRIFT_THRESHOLD"]:
-                    env_value = float(env_value)
-                
-                # Build nested dictionary
-                parts = config_key.split(".")
-                current = config_dict
-                for part in parts[:-1]:
-                    current = current.setdefault(part, {})
-                current[parts[-1]] = env_value
-        
-        return cls.model_validate(config_dict)
-    
-    def update(self, updates: Dict[str, Any]) -> None:
-        """Update configuration with new values"""
-        config_dict = self.model_dump()
-        
-        def update_nested(base: Dict[str, Any], updates: Dict[str, Any]) -> None:
-            for key, value in updates.items():
-                if isinstance(value, dict) and key in base:
-                    update_nested(base[key], value)
-                else:
-                    base[key] = value
-        
-        update_nested(config_dict, updates)
-        new_config = self.model_validate(config_dict)
-        
-        # Update all fields
-        for field in self.model_fields:
-            setattr(self, field, getattr(new_config, field))
-    
-    def save(self, path: Union[str, Path]) -> None:
+    def to_yaml(self, path: Union[str, Path]) -> None:
         """Save configuration to YAML file"""
         try:
+            config_dict = self.model_dump()
             with open(path, 'w') as f:
-                yaml.safe_dump(
-                    self.model_dump(),
-                    f,
-                    default_flow_style=False
-                )
+                yaml.dump(config_dict, f)
+            logger.info(f"Saved config to {path}")
         except Exception as e:
             logger.error(f"Failed to save config to {path}: {str(e)}")
             raise
+    
+    def update(self, updates: Dict) -> None:
+        """Update configuration with new values"""
+        try:
+            # Create new config with updates
+            updated = self.model_copy(update=updates)
+            
+            # Update self with new values
+            for key, value in updated.model_dump().items():
+                setattr(self, key, value)
+            
+            logger.info("Updated configuration")
+        except Exception as e:
+            logger.error(f"Failed to update config: {str(e)}")
+            raise
+    
+    @field_validator('version')
+    def validate_version(cls, v):
+        """Validate version format"""
+        from packaging import version
+        try:
+            version.parse(v)
+            return v
+        except version.InvalidVersion:
+            raise ValueError(f"Invalid version format: {v}")
+    
+    @field_validator('drift')
+    def validate_drift_config(cls, v):
+        """Validate drift configuration"""
+        if v.threshold <= 0 or v.threshold >= 1:
+            raise ValueError("Drift threshold must be between 0 and 1")
+        if v.window_size < 100:
+            raise ValueError("Window size must be at least 100")
+        return v
+    
+    @field_validator('monitor')
+    def validate_monitor_config(cls, v):
+        """Validate monitor configuration"""
+        valid_metrics = {
+            "accuracy", "precision", "recall", "f1",
+            "roc_auc", "mse", "rmse", "mae"
+        }
+        invalid_metrics = set(v.metrics) - valid_metrics
+        if invalid_metrics:
+            raise ValueError(f"Invalid metrics: {invalid_metrics}")
+        return v
+    
+    @field_validator('alerts')
+    def validate_alert_config(cls, v):
+        """Validate alert configuration"""
+        valid_channels = {"email", "slack", "webhook"}
+        invalid_channels = set(v.channels) - valid_channels
+        if invalid_channels:
+            raise ValueError(f"Invalid alert channels: {invalid_channels}")
+        
+        if "email" in v.channels and not v.email_recipients:
+            raise ValueError("Email recipients required when email alerts enabled")
+        return v
