@@ -1,194 +1,256 @@
 """
 Model monitoring module for DriftGuard.
 """
-from typing import Dict, List, Optional
-import pandas as pd
+from typing import Dict, List, Optional, Tuple
 import numpy as np
+import pandas as pd
+from sklearn import metrics
 from datetime import datetime
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, mean_squared_error, mean_absolute_error,
-    r2_score, explained_variance_score, max_error
-)
+import logging
 
 from .interfaces import IModelMonitor
 from .config import MonitorConfig
 
+logger = logging.getLogger(__name__)
+
 class ModelMonitor(IModelMonitor):
-    """Monitors model performance metrics"""
+    """Monitors model performance and detects concept drift"""
     
-    def __init__(self, config: MonitorConfig):
+    def __init__(self, config: Optional[MonitorConfig] = None):
         """Initialize model monitor"""
-        self.config = config
-        self.model_type = None
-        self.metrics_history = pd.DataFrame()
+        self.config = config or MonitorConfig()
+        self.reference_metrics = {}
+        self.reference_predictions = None
+        self.reference_labels = None
         self._initialized = False
     
-    def initialize(self, model_type: str) -> None:
-        """Initialize monitor for specific model type"""
-        if model_type not in ["classification", "regression"]:
+    def initialize(
+        self,
+        reference_predictions: pd.Series,
+        reference_labels: pd.Series
+    ) -> None:
+        """Initialize monitor with reference data"""
+        if len(reference_predictions) != len(reference_labels):
             raise ValueError(
-                "Model type must be either 'classification' or 'regression'"
+                "Length mismatch between predictions and labels"
             )
         
-        self.model_type = model_type
-        self._initialized = True
-    
-    def _compute_classification_metrics(
-        self,
-        y_true: pd.Series,
-        y_pred: pd.Series
-    ) -> Dict[str, float]:
-        """Compute classification metrics"""
-        metrics = {}
+        if len(reference_predictions) == 0:
+            raise ValueError("Reference data cannot be empty")
         
-        # Basic metrics
-        metrics['accuracy'] = float(accuracy_score(y_true, y_pred))
+        self.reference_predictions = reference_predictions.copy()
+        self.reference_labels = reference_labels.copy()
         
-        # Handle binary classification
-        unique_classes = np.unique(y_true)
-        if len(unique_classes) == 2:
-            metrics['precision'] = float(
-                precision_score(y_true, y_pred, average='binary')
-            )
-            metrics['recall'] = float(
-                recall_score(y_true, y_pred, average='binary')
-            )
-            metrics['f1'] = float(
-                f1_score(y_true, y_pred, average='binary')
-            )
-            
-            # ROC AUC requires probability scores
-            try:
-                metrics['roc_auc'] = float(
-                    roc_auc_score(y_true, y_pred)
-                )
-            except Exception:
-                pass
-        else:
-            # Multi-class metrics
-            metrics['precision'] = float(
-                precision_score(y_true, y_pred, average='weighted')
-            )
-            metrics['recall'] = float(
-                recall_score(y_true, y_pred, average='weighted')
-            )
-            metrics['f1'] = float(
-                f1_score(y_true, y_pred, average='weighted')
-            )
-        
-        return metrics
-    
-    def _compute_regression_metrics(
-        self,
-        y_true: pd.Series,
-        y_pred: pd.Series
-    ) -> Dict[str, float]:
-        """Compute regression metrics"""
-        metrics = {}
-        
-        # Error metrics
-        metrics['mse'] = float(mean_squared_error(y_true, y_pred))
-        metrics['rmse'] = float(np.sqrt(metrics['mse']))
-        metrics['mae'] = float(mean_absolute_error(y_true, y_pred))
-        metrics['max_error'] = float(max_error(y_true, y_pred))
-        
-        # Goodness of fit metrics
-        metrics['r2'] = float(r2_score(y_true, y_pred))
-        metrics['explained_variance'] = float(
-            explained_variance_score(y_true, y_pred)
+        # Compute reference metrics
+        self.reference_metrics = self._compute_metrics(
+            reference_predictions,
+            reference_labels
         )
         
-        return metrics
+        self._initialized = True
     
-    def track_performance(
+    def track(
         self,
         predictions: pd.Series,
-        actuals: pd.Series,
-        timestamp: Optional[datetime] = None
+        labels: pd.Series
     ) -> Dict[str, float]:
         """Track model performance"""
         if not self._initialized:
             raise ValueError("Monitor not initialized")
         
-        if len(predictions) != len(actuals):
+        if len(predictions) != len(labels):
             raise ValueError(
-                "Length mismatch between predictions and actuals"
+                "Length mismatch between predictions and labels"
             )
         
-        # Compute metrics based on model type
-        if self.model_type == "classification":
-            metrics = self._compute_classification_metrics(
-                actuals, predictions
-            )
-        else:
-            metrics = self._compute_regression_metrics(
-                actuals, predictions
-            )
-        
-        # Add timestamp
-        if timestamp is None:
-            timestamp = datetime.now()
-        
-        # Update metrics history
-        metrics['timestamp'] = timestamp
-        self.metrics_history = pd.concat([
-            self.metrics_history,
-            pd.DataFrame([metrics])
-        ], ignore_index=True)
-        
-        return metrics
-    
-    def check_degradation(
-        self,
-        metric: str,
-        window: Optional[int] = None
-    ) -> bool:
-        """Check for performance degradation"""
-        if metric not in self.metrics_history.columns:
-            raise ValueError(f"Unknown metric: {metric}")
-        
-        if len(self.metrics_history) < 2:
-            return False
-        
-        # Get metric history
-        metric_history = self.metrics_history[metric]
-        
-        if window:
-            metric_history = metric_history.tail(window)
-        
-        if len(metric_history) < 2:
-            return False
-        
-        # Compute baseline and current performance
-        baseline = metric_history.iloc[0]
-        current = metric_history.iloc[-1]
+        # Compute current metrics
+        current_metrics = self._compute_metrics(predictions, labels)
         
         # Check for degradation
-        if self.model_type == "classification":
-            # For classification metrics, lower is worse
-            degradation = (baseline - current) / baseline
-        else:
-            # For regression error metrics, higher is worse
-            if metric in ['mse', 'rmse', 'mae', 'max_error']:
-                degradation = (current - baseline) / baseline
-            else:
-                # For R2 and explained variance, lower is worse
-                degradation = (baseline - current) / baseline
+        degraded_metrics = self._check_degradation(current_metrics)
         
-        return degradation > self.config.degradation_threshold
+        # Add degradation flags to metrics
+        metrics_with_status = {
+            metric: {
+                'value': value,
+                'degraded': metric in degraded_metrics,
+                'reference': self.reference_metrics[metric]
+            }
+            for metric, value in current_metrics.items()
+        }
+        
+        return metrics_with_status
     
-    def get_performance_metrics(
+    def _compute_metrics(
         self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """Get performance metrics history"""
-        metrics = self.metrics_history.copy()
+        predictions: pd.Series,
+        labels: pd.Series
+    ) -> Dict[str, float]:
+        """Compute performance metrics"""
+        metrics_dict = {}
         
-        if start_time:
-            metrics = metrics[metrics['timestamp'] >= start_time]
-        if end_time:
-            metrics = metrics[metrics['timestamp'] <= end_time]
+        # Handle binary classification metrics
+        if len(np.unique(labels)) == 2:
+            if 'accuracy' in self.config.metrics:
+                metrics_dict['accuracy'] = metrics.accuracy_score(
+                    labels,
+                    predictions
+                )
+            
+            if 'precision' in self.config.metrics:
+                metrics_dict['precision'] = metrics.precision_score(
+                    labels,
+                    predictions,
+                    zero_division=0
+                )
+            
+            if 'recall' in self.config.metrics:
+                metrics_dict['recall'] = metrics.recall_score(
+                    labels,
+                    predictions,
+                    zero_division=0
+                )
+            
+            if 'f1' in self.config.metrics:
+                metrics_dict['f1'] = metrics.f1_score(
+                    labels,
+                    predictions,
+                    zero_division=0
+                )
+            
+            if 'roc_auc' in self.config.metrics:
+                try:
+                    metrics_dict['roc_auc'] = metrics.roc_auc_score(
+                        labels,
+                        predictions
+                    )
+                except:
+                    metrics_dict['roc_auc'] = 0.5
         
-        return metrics.sort_values('timestamp')
+        # Handle multiclass classification metrics
+        else:
+            if 'accuracy' in self.config.metrics:
+                metrics_dict['accuracy'] = metrics.accuracy_score(
+                    labels,
+                    predictions
+                )
+            
+            if 'precision' in self.config.metrics:
+                metrics_dict['precision'] = metrics.precision_score(
+                    labels,
+                    predictions,
+                    average='weighted',
+                    zero_division=0
+                )
+            
+            if 'recall' in self.config.metrics:
+                metrics_dict['recall'] = metrics.recall_score(
+                    labels,
+                    predictions,
+                    average='weighted',
+                    zero_division=0
+                )
+            
+            if 'f1' in self.config.metrics:
+                metrics_dict['f1'] = metrics.f1_score(
+                    labels,
+                    predictions,
+                    average='weighted',
+                    zero_division=0
+                )
+        
+        return metrics_dict
+    
+    def _check_degradation(
+        self,
+        current_metrics: Dict[str, float]
+    ) -> List[str]:
+        """Check for performance degradation"""
+        degraded_metrics = []
+        
+        for metric, value in current_metrics.items():
+            reference_value = self.reference_metrics[metric]
+            threshold = self.config.thresholds[metric]
+            
+            if self.config.threshold_type == 'absolute':
+                if value < threshold:
+                    degraded_metrics.append(metric)
+            
+            elif self.config.threshold_type == 'relative':
+                relative_change = (value - reference_value) / reference_value
+                if relative_change < -threshold:
+                    degraded_metrics.append(metric)
+            
+            elif self.config.threshold_type == 'dynamic':
+                # Use statistical process control
+                if self._detect_significant_change(
+                    metric,
+                    value,
+                    reference_value,
+                    threshold
+                ):
+                    degraded_metrics.append(metric)
+        
+        return degraded_metrics
+    
+    def _detect_significant_change(
+        self,
+        metric: str,
+        current_value: float,
+        reference_value: float,
+        threshold: float
+    ) -> bool:
+        """Detect statistically significant performance change"""
+        # Implement statistical process control
+        # Using 3-sigma rule for significant changes
+        std_dev = threshold * reference_value
+        lower_bound = reference_value - 3 * std_dev
+        
+        return current_value < lower_bound
+    
+    def detect_concept_drift(
+        self,
+        predictions: pd.Series,
+        labels: pd.Series,
+        window_size: Optional[int] = None
+    ) -> Tuple[bool, Dict[str, float]]:
+        """Detect concept drift using performance metrics"""
+        if not self._initialized:
+            raise ValueError("Monitor not initialized")
+        
+        window_size = window_size or self.config.window_size
+        
+        # Get current window metrics
+        current_metrics = self._compute_metrics(
+            predictions[-window_size:],
+            labels[-window_size:]
+        )
+        
+        # Check for significant degradation
+        degraded_metrics = self._check_degradation(current_metrics)
+        
+        # Compute drift severity
+        drift_metrics = {}
+        for metric in self.config.metrics:
+            if metric in current_metrics:
+                reference_value = self.reference_metrics[metric]
+                current_value = current_metrics[metric]
+                
+                # Compute relative change
+                if reference_value != 0:
+                    relative_change = (
+                        current_value - reference_value
+                    ) / reference_value
+                else:
+                    relative_change = float('inf')
+                
+                drift_metrics[metric] = {
+                    'current': current_value,
+                    'reference': reference_value,
+                    'relative_change': relative_change,
+                    'degraded': metric in degraded_metrics
+                }
+        
+        has_drift = len(degraded_metrics) > 0
+        
+        return has_drift, drift_metrics
