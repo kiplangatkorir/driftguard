@@ -1,46 +1,82 @@
 """
 Core interfaces for DriftGuard components.
-Defines the contract that all implementations must follow.
 """
-from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
+from datetime import datetime
+from abc import ABC, abstractmethod
+from pydantic import BaseModel, Field, field_validator
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
-from datetime import datetime
 
-@dataclass
-class DriftReport:
-    """Standardized drift detection report"""
+class DriftReport(BaseModel):
+    """Report containing drift detection results"""
     feature_name: str
     drift_score: float
-    p_value: float
-    timestamp: datetime
-    sample_size: int
-    drift_type: str
-    additional_metrics: Dict[str, Any]
+    p_value: Optional[float] = None
+    test_statistic: Optional[float] = None
+    threshold: float
+    timestamp: datetime = Field(default_factory=datetime.now)
+    metadata: Optional[Dict[str, Any]] = None
 
-@dataclass
-class MonitoringConfig:
-    """Configuration for monitoring components"""
-    drift_threshold: float = 0.05
-    performance_threshold: float = 0.1
-    monitoring_window: int = 1000
-    batch_size: Optional[int] = None
-    feature_importance_threshold: float = 0.1
-    alert_cooldown: int = 3600  # seconds
-    metrics: List[str] = None
+class AlertConfig(BaseModel):
+    """Configuration for alert channels"""
+    email_enabled: bool = False
+    email_recipients: Optional[List[str]] = None
+    email_smtp_host: Optional[str] = None
+    email_smtp_port: Optional[int] = None
+    email_smtp_user: Optional[str] = None
+    email_smtp_password: Optional[str] = None
+    slack_enabled: bool = False
+    slack_webhook: Optional[str] = None
+    
+    @field_validator('slack_webhook')
+    def validate_slack_webhook(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('https://hooks.slack.com/'):
+            raise ValueError('Invalid Slack webhook URL')
+        return v
+    
+    @field_validator('email_recipients')
+    def validate_email_recipients(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None:
+            for email in v:
+                if '@' not in email or '.' not in email:
+                    raise ValueError(f'Invalid email address: {email}')
+        return v
 
-    def __post_init__(self):
-        if self.metrics is None:
-            self.metrics = ["accuracy", "f1", "roc_auc"]
+class MetricConfig(BaseModel):
+    """Configuration for performance metrics"""
+    name: str
+    threshold: float = 0.1
+    window_size: Optional[int] = None
+
+class DriftConfig(BaseModel):
+    """Configuration for drift detection"""
+    method: str = 'ks_test'
+    threshold: float = 0.05
+    window_size: Optional[int] = None
+    features: Optional[List[str]] = None
+
+class StorageConfig(BaseModel):
+    """Configuration for state storage"""
+    type: str = 'local'
+    path: Optional[str] = None
+    retention_days: int = 30
+
+class MonitoringConfig(BaseModel):
+    """Main configuration for DriftGuard"""
+    project_name: str
+    model_type: str = 'classification'
+    metrics: List[MetricConfig]
+    drift: DriftConfig
+    alerts: AlertConfig
+    storage: StorageConfig
 
 class IDriftDetector(ABC):
-    """Interface for drift detection implementations"""
+    """Interface for drift detection"""
     
     @abstractmethod
-    def initialize(self, reference_data: pd.DataFrame, config: MonitoringConfig) -> None:
-        """Initialize the detector with reference data"""
+    def initialize(self, reference_data: pd.DataFrame) -> None:
+        """Initialize with reference data"""
         pass
     
     @abstractmethod
@@ -54,63 +90,70 @@ class IDriftDetector(ABC):
         pass
 
 class IModelMonitor(ABC):
-    """Interface for model monitoring implementations"""
+    """Interface for model monitoring"""
     
     @abstractmethod
     def track_performance(
         self,
         features: pd.DataFrame,
         predictions: np.ndarray,
-        actual: np.ndarray
+        actual: np.ndarray,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, float]:
-        """Track model performance metrics"""
-        pass
-    
-    @abstractmethod
-    def get_performance_history(self) -> pd.DataFrame:
-        """Get historical performance data"""
-        pass
-
-class IAlertManager(ABC):
-    """Interface for alert management implementations"""
-    
-    @abstractmethod
-    def send_alert(self, alert_type: str, message: str, severity: str) -> bool:
-        """Send an alert"""
-        pass
-    
-    @abstractmethod
-    def should_alert(self, alert_type: str) -> bool:
-        """Check if an alert should be sent based on cooldown"""
-        pass
-
-class IDataValidator(ABC):
-    """Interface for data validation implementations"""
-    
-    @abstractmethod
-    def validate(self, data: pd.DataFrame) -> Tuple[bool, List[str]]:
-        """Validate input data"""
-        pass
-    
-    @abstractmethod
-    def get_schema(self) -> Dict[str, Any]:
-        """Get the expected data schema"""
+        """Track model performance"""
         pass
 
 class IStateManager(ABC):
-    """Interface for state management implementations"""
+    """Interface for state management"""
     
     @abstractmethod
     def save_state(self, state: Dict[str, Any]) -> None:
-        """Save current state"""
+        """Save state"""
         pass
     
     @abstractmethod
     def load_state(self) -> Dict[str, Any]:
-        """Load saved state"""
+        """Load state"""
         pass
     
     @abstractmethod
-    def clear_state(self) -> None:
-        """Clear saved state"""
+    def update_metrics(
+        self,
+        metrics: Dict[str, float],
+        timestamp: datetime
+    ) -> None:
+        """Update metrics history"""
+        pass
+    
+    @abstractmethod
+    def get_metrics_history(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> pd.DataFrame:
+        """Get metrics history"""
+        pass
+    
+    @abstractmethod
+    def add_warning(self, message: str) -> None:
+        """Add warning message"""
+        pass
+    
+    @abstractmethod
+    def get_system_status(self) -> Dict[str, Any]:
+        """Get system status"""
+        pass
+
+class IAlertManager(ABC):
+    """Interface for alert management"""
+    
+    @abstractmethod
+    async def send_alert(
+        self,
+        alert_type: str,
+        message: str,
+        severity: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Send alert"""
         pass

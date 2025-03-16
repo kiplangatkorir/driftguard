@@ -1,0 +1,24 @@
+project_name: test_project
+model_type: classification
+
+metrics:
+  - name: accuracy
+    threshold: 0.1
+  - name: f1
+    threshold: 0.1
+  - name: roc_auc
+    threshold: 0.15
+
+drift:
+  method: ks_test
+  threshold: 0.05
+  window_size: 1000
+
+alerts:
+  email_enabled: false
+  slack_enabled: false
+
+storage:
+  type: local
+  path: ./test_storage
+  retention_days: 7
