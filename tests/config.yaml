@@ -13,32 +13,67 @@ model:
   threshold: 0.1
 
 drift:
-  method: "ks_test"  # or "jsd", "psi"
-  threshold: 0.05
-  window_size: 1000
-  min_samples: 100
+  ks_test:
+    threshold: 0.05
+    correction: bonferroni
+  jsd:
+    threshold: 0.1
+    bins: 20
+  psi:
+    threshold: 0.2
+    bins: 20
+  
+  feature_selection:
+    method: all
+    max_features: null
+
+monitor:
+  degradation_threshold: 0.1
+  window_size: 100
+  metrics:
+    classification:
+      - accuracy
+      - precision
+      - recall
+      - f1
+      - roc_auc
+    regression:
+      - mse
+      - rmse
+      - mae
+      - r2
+      - explained_variance
+
+validation:
+  schema:
+    validate: true
+    allow_extra: false
+  missing:
+    max_pct: 0.1
+    strategy: drop
+  range:
+    validate: true
+    std_threshold: 3.0
+
+alerts:
+  enabled: true
+  severity_levels:
+    - info
+    - warning
+    - error
+    - critical
+  email:
+    enabled: false
+    smtp_host: localhost
+    smtp_port: 25
+    from_address: driftguard@test.com
+    to_addresses: []
 
 storage:
-  type: "local"
-  path: "./test_storage"
-  retention_days: 30
+  path: tests/storage
+  retention_days: 7
+  compression: true
 
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-monitor:
-  metrics:
-    - "accuracy"
-    - "f1"
-    - "roc_auc"
-  window_size: 1000
-  performance_threshold: 0.1
-
-alerts:
-  enabled: true
-  channels:
-    - "email"
-  email_recipients:
-    - "test@example.com"
-  min_interval_minutes: 60
