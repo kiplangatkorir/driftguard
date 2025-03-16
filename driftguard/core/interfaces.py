@@ -1,34 +1,43 @@
 """
 Core interfaces and data models for DriftGuard components.
 """
-from typing import Any, Dict, List, Optional, Protocol, Union
+from typing import Any, Dict, List, Optional, Protocol
+import pandas as pd
 from datetime import datetime
 from pydantic import BaseModel, Field
-import pandas as pd
-import numpy as np
 
 class DriftReport(BaseModel):
-    """Report for drift detection results"""
+    """Drift detection report"""
     feature_name: str = Field(description="Name of the feature")
-    drift_score: float = Field(description="Drift detection score")
-    p_value: Optional[float] = Field(default=None, description="Statistical test p-value")
-    threshold: float = Field(description="Drift detection threshold")
+    drift_score: float = Field(description="Drift score")
+    p_value: Optional[float] = Field(
+        default=None,
+        description="P-value for statistical tests"
+    )
+    threshold: float = Field(description="Drift threshold")
     method: str = Field(description="Drift detection method used")
-    timestamp: datetime = Field(default_factory=datetime.now)
     has_drift: bool = Field(description="Whether drift was detected")
-    metadata: Optional[Dict[str, Any]] = Field(default=None)
+    timestamp: datetime = Field(
+        default_factory=datetime.now,
+        description="Time of detection"
+    )
 
 class MetricReport(BaseModel):
-    """Report for model performance metrics"""
+    """Model performance metric report"""
     metric_name: str = Field(description="Name of the metric")
-    value: float = Field(description="Current metric value")
+    value: float = Field(description="Metric value")
     threshold: float = Field(description="Performance threshold")
-    exceeds_threshold: bool = Field(description="Whether threshold is exceeded")
-    timestamp: datetime = Field(default_factory=datetime.now)
-    metadata: Optional[Dict[str, Any]] = Field(default=None)
+    exceeds_threshold: bool = Field(
+        description="Whether metric exceeds threshold"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now,
+        description="Time of measurement"
+    )
 
 class IDriftDetector(Protocol):
     """Interface for drift detection"""
+    
     def initialize(self, reference_data: pd.DataFrame) -> None:
         """Initialize with reference data"""
         ...
@@ -41,8 +50,36 @@ class IDriftDetector(Protocol):
         """Update reference data"""
         ...
 
+class IModelMonitor(Protocol):
+    """Interface for model monitoring"""
+    
+    def initialize(
+        self,
+        model: Any,
+        reference_data: pd.DataFrame
+    ) -> None:
+        """Initialize monitor"""
+        ...
+    
+    def track_performance(
+        self,
+        data: pd.DataFrame,
+        actual_labels: pd.Series
+    ) -> List[MetricReport]:
+        """Track model performance"""
+        ...
+    
+    def update_reference(
+        self,
+        new_reference: pd.DataFrame,
+        new_labels: Optional[pd.Series] = None
+    ) -> None:
+        """Update reference data"""
+        ...
+
 class IStateManager(Protocol):
     """Interface for state management"""
+    
     def save_state(self, state: Dict[str, Any]) -> None:
         """Save current state"""
         ...
@@ -71,46 +108,17 @@ class IStateManager(Protocol):
         """Get system status"""
         ...
 
-class IAlertManager(Protocol):
-    """Interface for alert management"""
-    async def send_drift_alert(
-        self,
-        drift_reports: List[DriftReport],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Send drift alert"""
+class IDataValidator(Protocol):
+    """Interface for data validation"""
+    
+    def initialize(self, reference_data: pd.DataFrame) -> None:
+        """Initialize validator with reference data"""
         ...
     
-    async def send_metric_alert(
-        self,
-        metric_reports: List[MetricReport],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Send metric alert"""
-        ...
-
-class IModelMonitor(Protocol):
-    """Interface for model monitoring"""
-    def initialize(
-        self,
-        model: Any,
-        reference_data: pd.DataFrame
-    ) -> None:
-        """Initialize monitor"""
+    def validate(self, data: pd.DataFrame) -> Any:
+        """Validate input data"""
         ...
     
-    def track_performance(
-        self,
-        data: pd.DataFrame,
-        actual_labels: Union[pd.Series, np.ndarray]
-    ) -> List[MetricReport]:
-        """Track model performance"""
-        ...
-    
-    def update_reference(
-        self,
-        new_reference: pd.DataFrame,
-        new_labels: Optional[pd.Series] = None
-    ) -> None:
+    def update_reference(self, new_reference: pd.DataFrame) -> None:
         """Update reference data"""
         ...
