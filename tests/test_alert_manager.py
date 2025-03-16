@@ -1,94 +1,202 @@
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+"""Tests for the alert management module."""
 import pytest
-import json
-import os
-from unittest.mock import patch, MagicMock
-from datetime import datetime
-from driftguard.alert_manager import AlertManager  
+from datetime import datetime, timedelta
+import pandas as pd
+from unittest.mock import Mock, patch
+
+from driftguard.core.alerts import AlertManager, Alert, AlertSeverity
+from driftguard.core.config import AlertConfig
 
 @pytest.fixture
-def alert_manager():
-    """Fixture to create an AlertManager instance with temporary files."""
-    return AlertManager(
-        threshold=0.5,
-        alert_history_file="test_alert_history.json",
-        recipient_config_file="test_recipient_config.json"
+def alert_config():
+    """Create test alert configuration"""
+    return AlertConfig(
+        email_settings={
+            'smtp_server': 'smtp.test.com',
+            'smtp_port': 587,
+            'sender_email': 'test@example.com',
+            'recipients': ['admin@example.com'],
+            'username': 'test_user',
+            'password': 'test_pass'
+        },
+        severity_thresholds={
+            'critical': 0.3,
+            'warning': 0.1,
+            'info': 0.05
+        },
+        notification_cooldown=timedelta(hours=1)
     )
 
-def test_email_validation(alert_manager):
-    """Test valid and invalid email formats."""
-    assert alert_manager._validate_email("test@example.com") is True
-    assert alert_manager._validate_email("invalid-email") is False
-    assert alert_manager._validate_email("user@domain") is False
-    assert alert_manager._validate_email("user@domain..com") is False
+@pytest.fixture
+def alert_manager(alert_config):
+    """Create alert manager instance"""
+    return AlertManager(alert_config)
 
-def test_set_recipient_email(alert_manager):
-    """Test setting a valid recipient email."""
-    assert alert_manager.set_recipient_email("valid@example.com", "Test User") is True
-    config = alert_manager.get_recipient_config()
-    assert config["email"] == "valid@example.com"
-    assert config["name"] == "Test User"
-
-def test_set_recipient_email_invalid(alert_manager):
-    """Test handling of invalid email formats."""
-    with pytest.raises(ValueError, match="Invalid email format"):
-        alert_manager.set_recipient_email("invalid-email")
-
-@patch("smtplib.SMTP")
-def test_send_alert(mock_smtp, alert_manager):
-    """Test sending an alert successfully (mocked SMTP)."""
-    alert_manager.set_recipient_email("korirg543@gmail.com")
+def test_alert_creation():
+    """Test alert object creation"""
+    alert = Alert(
+        message="Test alert",
+        severity=AlertSeverity.WARNING,
+        source="test_source",
+        timestamp=datetime.now(),
+        metadata={"test_key": "test_value"}
+    )
     
-    mock_server = MagicMock()
-    mock_smtp.return_value.__enter__.return_value = mock_server
-    
-    assert alert_manager.send_alert("Test Alert", drift_score=0.8) is True
-    
-    alert_history = alert_manager.get_alert_statistics()
-    assert alert_history["total_alerts"] == 1
-    assert alert_history["successful_alerts"] == 1
-    assert alert_history["failed_alerts"] == 0
+    assert alert.message == "Test alert"
+    assert alert.severity == AlertSeverity.WARNING
+    assert alert.source == "test_source"
+    assert isinstance(alert.timestamp, datetime)
+    assert alert.metadata == {"test_key": "test_value"}
 
-@patch("smtplib.SMTP", side_effect=Exception("SMTP connection error"))
-def test_send_alert_failure(mock_smtp, alert_manager):
-    """Test failure scenario when sending an alert."""
-    alert_manager.set_recipient_email("korirg543@gmail.com")
-    assert alert_manager.send_alert("Test Alert", drift_score=0.8) is False
+def test_alert_manager_initialization(alert_manager):
+    """Test alert manager initialization"""
+    assert alert_manager.config is not None
+    assert len(alert_manager.alert_history) == 0
+
+@patch('smtplib.SMTP')
+def test_email_notification(mock_smtp, alert_manager):
+    """Test email notification sending"""
+    # Add alert that should trigger notification
+    alert_manager.add_alert(
+        message="Critical drift detected",
+        severity=AlertSeverity.CRITICAL,
+        source="drift_detector",
+        metadata={"metric": "accuracy", "value": 0.6}
+    )
     
-    alert_history = alert_manager.get_alert_statistics()
-    assert alert_history["total_alerts"] == 1
-    assert alert_history["failed_alerts"] == 1
+    # Verify SMTP calls
+    mock_smtp.assert_called_once()
+    mock_smtp_instance = mock_smtp.return_value.__enter__.return_value
+    assert mock_smtp_instance.starttls.called
+    assert mock_smtp_instance.login.called
+    assert mock_smtp_instance.send_message.called
 
-def test_check_and_alert(alert_manager):
-    """Test that alerts trigger only when drift exceeds the threshold."""
-    alert_manager.set_recipient_email("korirg543@gmail.com.com")
+def test_alert_filtering(alert_manager):
+    """Test alert filtering functionality"""
+    # Add multiple alerts
+    alert_manager.add_alert(
+        "Warning alert",
+        AlertSeverity.WARNING,
+        "test_source"
+    )
+    alert_manager.add_alert(
+        "Critical alert",
+        AlertSeverity.CRITICAL,
+        "drift_detector"
+    )
+    alert_manager.add_alert(
+        "Info alert",
+        AlertSeverity.INFO,
+        "performance_monitor"
+    )
     
-    with patch.object(alert_manager, "send_alert", return_value=True) as mock_send:
-        assert alert_manager.check_and_alert(0.6) is True  # Should trigger alert
-        mock_send.assert_called_once()
+    # Filter by severity
+    critical_alerts = alert_manager.get_alerts(
+        severity=AlertSeverity.CRITICAL
+    )
+    assert len(critical_alerts) == 1
+    assert critical_alerts[0].severity == AlertSeverity.CRITICAL
     
-    with patch.object(alert_manager, "send_alert", return_value=False) as mock_send:
-        assert alert_manager.check_and_alert(0.4) is False  # Should not trigger alert
-        mock_send.assert_not_called()
+    # Filter by source
+    drift_alerts = alert_manager.get_alerts(source="drift_detector")
+    assert len(drift_alerts) == 1
+    assert drift_alerts[0].source == "drift_detector"
+    
+    # Filter by time range
+    now = datetime.now()
+    recent_alerts = alert_manager.get_alerts(
+        start_time=now - timedelta(minutes=5),
+        end_time=now
+    )
+    assert len(recent_alerts) == 3
 
-def test_alert_statistics(alert_manager):
-    """Test alert statistics tracking."""
-    alert_manager.set_recipient_email("korirg543@gmail.com")
-    alert_manager.send_alert("Test Alert", drift_score=0.8)
+def test_alert_deduplication(alert_manager):
+    """Test alert deduplication logic"""
+    # Add similar alerts within cooldown period
+    alert_manager.add_alert(
+        "Duplicate alert",
+        AlertSeverity.WARNING,
+        "test_source"
+    )
+    
+    # This should be deduplicated
+    alert_manager.add_alert(
+        "Duplicate alert",
+        AlertSeverity.WARNING,
+        "test_source"
+    )
+    
+    alerts = alert_manager.get_alerts()
+    assert len(alerts) == 1
 
-    stats = alert_manager.get_alert_statistics()
-    assert stats["total_alerts"] == 1
-    assert stats["successful_alerts"] == 1
-    assert stats["failed_alerts"] == 0
-    assert stats["alert_count_today"] == 1
-    assert stats["last_alert_time"] is not None
+def test_alert_aggregation(alert_manager):
+    """Test alert aggregation functionality"""
+    # Add multiple related alerts
+    for i in range(5):
+        alert_manager.add_alert(
+            f"Performance degradation {i}",
+            AlertSeverity.WARNING,
+            "performance_monitor",
+            metadata={"metric": "accuracy"}
+        )
+    
+    # Get aggregated alerts
+    aggregated = alert_manager.get_aggregated_alerts(
+        group_by=["source", "severity"],
+        time_window=timedelta(minutes=5)
+    )
+    
+    assert len(aggregated) == 1
+    assert aggregated[0]["count"] == 5
+    assert aggregated[0]["source"] == "performance_monitor"
+    assert aggregated[0]["severity"] == AlertSeverity.WARNING
 
-@pytest.fixture(scope="function", autouse=True)
-def cleanup_test_files():
-    """Cleanup test files after each test."""
-    yield
-    for file in ["test_alert_history.json", "test_recipient_config.json"]:
-        if os.path.exists(file):
-            os.remove(file)
+def test_severity_escalation(alert_manager):
+    """Test alert severity escalation"""
+    # Add multiple warnings
+    for _ in range(3):
+        alert_manager.add_alert(
+            "Warning alert",
+            AlertSeverity.WARNING,
+            "test_source"
+        )
+    
+    # Check if severity was escalated
+    alerts = alert_manager.get_alerts()
+    assert any(alert.severity == AlertSeverity.CRITICAL for alert in alerts)
+
+@patch('requests.post')
+def test_webhook_notification(mock_post, alert_manager):
+    """Test webhook notification sending"""
+    # Configure webhook
+    alert_manager.config.webhook_url = "https://test.webhook.com"
+    
+    # Add alert
+    alert_manager.add_alert(
+        "Test webhook",
+        AlertSeverity.CRITICAL,
+        "test_source"
+    )
+    
+    # Verify webhook call
+    mock_post.assert_called_once()
+    assert mock_post.call_args[0][0] == "https://test.webhook.com"
+
+def test_error_handling(alert_manager):
+    """Test error handling in alert manager"""
+    # Test invalid severity
+    with pytest.raises(ValueError):
+        alert_manager.add_alert(
+            "Test alert",
+            "INVALID_SEVERITY",
+            "test_source"
+        )
+    
+    # Test invalid time range
+    with pytest.raises(ValueError):
+        end_time = datetime.now()
+        start_time = end_time + timedelta(hours=1)
+        alert_manager.get_alerts(
+            start_time=start_time,
+            end_time=end_time
+        )
