@@ -1,67 +1,66 @@
 """
 State management module for DriftGuard.
-Handles persistence of monitoring state, metrics, and drift history.
 """
 from typing import Any, Dict, List, Optional
-import pandas as pd
-import numpy as np
-from datetime import datetime
 import json
+import os
+from datetime import datetime
+import pandas as pd
 from pathlib import Path
-import logging
+
 from .interfaces import IStateManager
 
-logger = logging.getLogger(__name__)
-
 class StateManager(IStateManager):
-    """Manages persistence of monitoring state"""
+    """Manages persistence of monitoring state and metrics"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(
+        self,
+        path: str = "./storage",
+        retention_days: int = 30
+    ):
         """Initialize state manager"""
-        self.config = config
-        self.storage_path = Path(config['path'])
-        self.metrics_file = self.storage_path / 'metrics.csv'
-        self.state_file = self.storage_path / 'state.json'
+        self.base_path = Path(path)
+        self.retention_days = retention_days
         
-        # Create storage directory if it doesn't exist
-        self.storage_path.mkdir(parents=True, exist_ok=True)
-        
-        # Initialize empty state if not exists
-        if not self.state_file.exists():
-            self.save_state({
-                'last_update': datetime.now().isoformat(),
-                'monitoring': {
-                    'total_samples_processed': 0,
-                    'last_drift_detected': None
-                }
-            })
-        
-        # Initialize empty metrics file if not exists
-        if not self.metrics_file.exists():
-            pd.DataFrame(columns=['timestamp']).to_csv(
-                self.metrics_file,
-                index=False
-            )
+        # Create storage directories
+        self.state_path = self.base_path / "state"
+        self.metrics_path = self.base_path / "metrics"
+        self._initialize_storage()
+    
+    def _initialize_storage(self) -> None:
+        """Initialize storage directories"""
+        self.state_path.mkdir(parents=True, exist_ok=True)
+        self.metrics_path.mkdir(parents=True, exist_ok=True)
+    
+    def _get_current_state_file(self) -> Path:
+        """Get path to current state file"""
+        return self.state_path / "current_state.json"
+    
+    def _get_metrics_file(self, timestamp: datetime) -> Path:
+        """Get path to metrics file for given timestamp"""
+        date_str = timestamp.strftime("%Y-%m-%d")
+        return self.metrics_path / f"metrics_{date_str}.csv"
     
     def save_state(self, state: Dict[str, Any]) -> None:
         """Save current state"""
-        try:
-            with open(self.state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            logger.debug("Saved state")
-        except Exception as e:
-            logger.error(f"Failed to save state: {str(e)}")
-            raise
+        state_file = self._get_current_state_file()
+        
+        # Add timestamp to state
+        state['last_updated'] = datetime.now().isoformat()
+        
+        # Save state
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
     
     def load_state(self) -> Dict[str, Any]:
         """Load saved state"""
-        try:
-            with open(self.state_file, 'r') as f:
-                state = json.load(f)
-            return state
-        except Exception as e:
-            logger.error(f"Failed to load state: {str(e)}")
-            raise
+        state_file = self._get_current_state_file()
+        
+        if not state_file.exists():
+            return {}
+        
+        with open(state_file, 'r') as f:
+            return json.load(f)
     
     def update_metrics(
         self,
@@ -69,87 +68,92 @@ class StateManager(IStateManager):
         timestamp: Optional[datetime] = None
     ) -> None:
         """Update metrics history"""
-        try:
-            # Load existing metrics
-            df = pd.read_csv(self.metrics_file)
-            
-            # Create new row
-            new_row = {
-                'timestamp': timestamp or datetime.now()
-            }
-            new_row.update(metrics)
-            
-            # Append new row
-            df = pd.concat([
-                df,
-                pd.DataFrame([new_row])
-            ], ignore_index=True)
-            
-            # Apply retention policy
-            if self.config['retention_days']:
-                cutoff = pd.Timestamp.now() - pd.Timedelta(
-                    days=self.config['retention_days']
-                )
-                df = df[pd.to_datetime(df['timestamp']) > cutoff]
-            
-            # Save updated metrics
-            df.to_csv(self.metrics_file, index=False)
-            logger.debug("Updated metrics")
-            
-        except Exception as e:
-            logger.error(f"Failed to update metrics: {str(e)}")
-            raise
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        metrics_file = self._get_metrics_file(timestamp)
+        
+        # Add timestamp to metrics
+        metrics['timestamp'] = timestamp.isoformat()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame([metrics])
+        
+        # Append or create metrics file
+        if metrics_file.exists():
+            existing_df = pd.read_csv(metrics_file)
+            df = pd.concat([existing_df, df], ignore_index=True)
+        
+        # Save metrics
+        df.to_csv(metrics_file, index=False)
+        
+        # Clean up old metrics
+        self._cleanup_old_metrics()
+    
+    def _cleanup_old_metrics(self) -> None:
+        """Remove metrics files older than retention period"""
+        cutoff_date = datetime.now().timestamp() - (
+            self.retention_days * 24 * 60 * 60
+        )
+        
+        for file in self.metrics_path.glob("metrics_*.csv"):
+            if file.stat().st_mtime < cutoff_date:
+                file.unlink()
     
     def get_metrics_history(
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> pd.DataFrame:
-        """Get metrics history"""
-        try:
-            # Load metrics
-            df = pd.read_csv(self.metrics_file)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
-            # Apply time filters
-            if start_time:
-                df = df[df['timestamp'] >= start_time]
-            if end_time:
-                df = df[df['timestamp'] <= end_time]
-            
-            return df
-            
-        except Exception as e:
-            logger.error(f"Failed to get metrics history: {str(e)}")
-            raise
+        """Get metrics history within time range"""
+        # Get all metrics files
+        metrics_files = list(self.metrics_path.glob("metrics_*.csv"))
+        if not metrics_files:
+            return pd.DataFrame()
+        
+        # Read and concatenate all metrics
+        dfs = []
+        for file in metrics_files:
+            df = pd.read_csv(file)
+            if 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                dfs.append(df)
+        
+        if not dfs:
+            return pd.DataFrame()
+        
+        # Combine all metrics
+        metrics_df = pd.concat(dfs, ignore_index=True)
+        
+        # Filter by time range
+        if start_time:
+            metrics_df = metrics_df[metrics_df['timestamp'] >= start_time]
+        if end_time:
+            metrics_df = metrics_df[metrics_df['timestamp'] <= end_time]
+        
+        return metrics_df.sort_values('timestamp')
     
     def get_system_status(self) -> Dict[str, Any]:
-        """Get system status"""
-        try:
-            state = self.load_state()
-            metrics_df = self.get_metrics_history(
-                start_time=datetime.now() - pd.Timedelta(days=7)
-            )
-            
-            status = {
-                'last_update': state['last_update'],
-                'monitoring': state['monitoring'],
-                'metrics': {
-                    'last_7_days': {
-                        col: {
-                            'mean': metrics_df[col].mean(),
-                            'std': metrics_df[col].std(),
-                            'min': metrics_df[col].min(),
-                            'max': metrics_df[col].max()
-                        }
-                        for col in metrics_df.columns
-                        if col != 'timestamp'
-                    }
-                }
+        """Get current system status"""
+        state = self.load_state()
+        
+        # Get latest metrics
+        latest_metrics = pd.DataFrame()
+        metrics_files = list(self.metrics_path.glob("metrics_*.csv"))
+        if metrics_files:
+            latest_file = max(metrics_files, key=lambda p: p.stat().st_mtime)
+            latest_metrics = pd.read_csv(latest_file)
+            if not latest_metrics.empty:
+                latest_metrics = latest_metrics.iloc[-1].to_dict()
+        
+        status = {
+            'state': state,
+            'latest_metrics': latest_metrics,
+            'storage': {
+                'base_path': str(self.base_path),
+                'retention_days': self.retention_days,
+                'metrics_files': len(metrics_files)
             }
-            
-            return status
-            
-        except Exception as e:
-            logger.error(f"Failed to get system status: {str(e)}")
-            raise
+        }
+        
+        return status

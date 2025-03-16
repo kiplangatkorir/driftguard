@@ -1,206 +1,200 @@
 """
 Data validation module for DriftGuard.
 """
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
-from datetime import datetime
-import logging
-from pydantic import BaseModel, Field, validator
-from .interfaces import IDataValidator
+from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+@dataclass
+class ValidationResult:
+    """Result of data validation"""
+    is_valid: bool
+    errors: List[str]
+    warnings: List[str]
+    stats: Dict[str, Dict[str, float]]
 
-class ValidationResult(BaseModel):
-    """Validation result model"""
-    is_valid: bool = Field(description="Whether validation passed")
-    errors: List[str] = Field(default_factory=list, description="List of validation errors")
-    warnings: List[str] = Field(default_factory=list, description="List of validation warnings")
-    stats: Dict[str, Dict[str, float]] = Field(
-        default_factory=dict,
-        description="Statistics for each feature"
-    )
-
-class DataValidator(IDataValidator):
-    """Data validation for model inputs"""
+class DataValidator:
+    """Validates input data for consistency and quality"""
     
-    def __init__(
-        self,
-        schema: Optional[Dict] = None,
-        required_columns: Optional[List[str]] = None,
-        value_ranges: Optional[Dict[str, Tuple[float, float]]] = None,
-        categorical_values: Optional[Dict[str, List[Union[str, int]]]] = None,
-        max_missing_pct: float = 0.1
-    ):
+    def __init__(self, max_missing_pct: float = 0.1):
         """Initialize validator"""
-        self.schema = schema or {}
-        self.required_columns = required_columns or []
-        self.value_ranges = value_ranges or {}
-        self.categorical_values = categorical_values or {}
         self.max_missing_pct = max_missing_pct
-        self.reference_stats = {}
+        self.reference_schema = None
+        self.feature_ranges = {}
+        self.feature_types = {}
+        self._initialized = False
     
     def initialize(self, reference_data: pd.DataFrame) -> None:
         """Initialize validator with reference data"""
-        try:
-            # Compute reference statistics
-            self.reference_stats = self._compute_statistics(reference_data)
-            
-            # Infer schema if not provided
-            if not self.schema:
-                self.schema = self._infer_schema(reference_data)
-            
-            # Infer required columns if not provided
-            if not self.required_columns:
-                self.required_columns = list(reference_data.columns)
-            
-            # Infer value ranges if not provided
-            if not self.value_ranges:
-                self.value_ranges = self._infer_ranges(reference_data)
-            
-            # Infer categorical values if not provided
-            if not self.categorical_values:
-                self.categorical_values = self._infer_categories(reference_data)
-            
-            logger.info("Initialized data validator")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize validator: {str(e)}")
-            raise
+        self.reference_schema = reference_data.columns.tolist()
+        
+        # Store feature types
+        self.feature_types = {
+            col: str(reference_data[col].dtype)
+            for col in reference_data.columns
+        }
+        
+        # Compute feature ranges
+        self.feature_ranges = {}
+        for col in reference_data.columns:
+            if np.issubdtype(reference_data[col].dtype, np.number):
+                values = reference_data[col].dropna()
+                if len(values) > 0:
+                    self.feature_ranges[col] = {
+                        'min': float(values.min()),
+                        'max': float(values.max()),
+                        'mean': float(values.mean()),
+                        'std': float(values.std())
+                    }
+        
+        self._initialized = True
     
-    def _compute_statistics(self, data: pd.DataFrame) -> Dict[str, Dict[str, float]]:
-        """Compute basic statistics for each feature"""
-        stats = {}
+    def _validate_schema(self, data: pd.DataFrame) -> List[str]:
+        """Validate data schema"""
+        errors = []
+        
+        # Check for missing columns
+        missing_cols = set(self.reference_schema) - set(data.columns)
+        if missing_cols:
+            errors.append(
+                f"Missing columns: {', '.join(missing_cols)}"
+            )
+        
+        # Check for extra columns
+        extra_cols = set(data.columns) - set(self.reference_schema)
+        if extra_cols:
+            errors.append(
+                f"Extra columns found: {', '.join(extra_cols)}"
+            )
+        
+        # Check data types
+        for col in self.reference_schema:
+            if col in data.columns:
+                expected_type = self.feature_types[col]
+                actual_type = str(data[col].dtype)
+                if expected_type != actual_type:
+                    errors.append(
+                        f"Column '{col}' has incorrect type. "
+                        f"Expected {expected_type}, got {actual_type}"
+                    )
+        
+        return errors
+    
+    def _validate_missing_values(self, data: pd.DataFrame) -> List[str]:
+        """Validate missing values"""
+        errors = []
+        
         for col in data.columns:
-            stats[col] = {
-                'mean': float(data[col].mean()),
-                'std': float(data[col].std()),
-                'min': float(data[col].min()),
-                'max': float(data[col].max()),
-                'missing_pct': float(data[col].isnull().mean())
-            }
+            missing_pct = data[col].isna().mean()
+            if missing_pct > self.max_missing_pct:
+                errors.append(
+                    f"Column '{col}' has {missing_pct:.1%} missing values, "
+                    f"exceeding threshold of {self.max_missing_pct:.1%}"
+                )
+        
+        return errors
+    
+    def _validate_ranges(self, data: pd.DataFrame) -> List[str]:
+        """Validate numerical ranges"""
+        warnings = []
+        
+        for col, ranges in self.feature_ranges.items():
+            if col not in data.columns:
+                continue
+            
+            values = data[col].dropna()
+            if len(values) == 0:
+                continue
+            
+            # Check for values outside 3 standard deviations
+            mean = ranges['mean']
+            std = ranges['std']
+            lower_bound = mean - 3 * std
+            upper_bound = mean + 3 * std
+            
+            outliers = values[(values < lower_bound) | (values > upper_bound)]
+            if len(outliers) > 0:
+                outlier_pct = len(outliers) / len(values)
+                warnings.append(
+                    f"Column '{col}' has {outlier_pct:.1%} values outside "
+                    f"3 standard deviations from the mean"
+                )
+            
+            # Check for values outside absolute ranges
+            values_below = values[values < ranges['min']]
+            values_above = values[values > ranges['max']]
+            
+            if len(values_below) > 0:
+                pct_below = len(values_below) / len(values)
+                warnings.append(
+                    f"Column '{col}' has {pct_below:.1%} values below "
+                    f"minimum reference value {ranges['min']:.2f}"
+                )
+            
+            if len(values_above) > 0:
+                pct_above = len(values_above) / len(values)
+                warnings.append(
+                    f"Column '{col}' has {pct_above:.1%} values above "
+                    f"maximum reference value {ranges['max']:.2f}"
+                )
+        
+        return warnings
+    
+    def _compute_stats(self, data: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+        """Compute data statistics"""
+        stats = {}
+        
+        for col in data.columns:
+            if np.issubdtype(data[col].dtype, np.number):
+                values = data[col].dropna()
+                if len(values) > 0:
+                    stats[col] = {
+                        'min': float(values.min()),
+                        'max': float(values.max()),
+                        'mean': float(values.mean()),
+                        'std': float(values.std()),
+                        'missing_pct': float(data[col].isna().mean())
+                    }
+        
         return stats
     
-    def _infer_schema(self, data: pd.DataFrame) -> Dict:
-        """Infer data schema from reference data"""
-        schema = {}
-        for col in data.columns:
-            if pd.api.types.is_numeric_dtype(data[col]):
-                schema[col] = 'numeric'
-            elif pd.api.types.is_datetime64_any_dtype(data[col]):
-                schema[col] = 'datetime'
-            elif pd.api.types.is_categorical_dtype(data[col]):
-                schema[col] = 'categorical'
-            else:
-                schema[col] = 'string'
-        return schema
-    
-    def _infer_ranges(
-        self,
-        data: pd.DataFrame,
-        std_multiplier: float = 3
-    ) -> Dict[str, Tuple[float, float]]:
-        """Infer acceptable value ranges"""
-        ranges = {}
-        for col in data.columns:
-            if self.schema.get(col) == 'numeric':
-                mean = data[col].mean()
-                std = data[col].std()
-                ranges[col] = (
-                    float(mean - std_multiplier * std),
-                    float(mean + std_multiplier * std)
-                )
-        return ranges
-    
-    def _infer_categories(
-        self,
-        data: pd.DataFrame,
-        max_unique: int = 100
-    ) -> Dict[str, List[Union[str, int]]]:
-        """Infer categorical values"""
-        categories = {}
-        for col in data.columns:
-            if self.schema.get(col) == 'categorical':
-                unique_values = data[col].unique()
-                if len(unique_values) <= max_unique:
-                    categories[col] = list(unique_values)
-        return categories
-    
     def validate(self, data: pd.DataFrame) -> ValidationResult:
-        """Validate input data"""
-        try:
-            errors = []
-            warnings = []
+        """
+        Validate input data.
+        
+        Performs the following checks:
+        1. Schema validation (columns and types)
+        2. Missing value checks
+        3. Range validation for numerical features
+        """
+        if not self._initialized:
+            raise ValueError("Validator not initialized")
+        
+        errors = []
+        warnings = []
+        
+        # Schema validation
+        errors.extend(self._validate_schema(data))
+        
+        # Only proceed with other checks if schema is valid
+        if not errors:
+            # Missing value validation
+            errors.extend(self._validate_missing_values(data))
             
-            # Check required columns
-            missing_cols = set(self.required_columns) - set(data.columns)
-            if missing_cols:
-                errors.append(
-                    f"Missing required columns: {', '.join(missing_cols)}"
-                )
-            
-            # Compute current statistics
-            current_stats = self._compute_statistics(data)
-            
-            for col in data.columns:
-                # Check data type
-                expected_type = self.schema.get(col)
-                if expected_type == 'numeric' and not pd.api.types.is_numeric_dtype(data[col]):
-                    errors.append(f"Column {col} should be numeric")
-                
-                # Check missing values
-                missing_pct = data[col].isnull().mean()
-                if missing_pct > self.max_missing_pct:
-                    errors.append(
-                        f"Column {col} has {missing_pct:.1%} missing values"
-                        f" (max allowed: {self.max_missing_pct:.1%})"
-                    )
-                
-                # Check value ranges
-                if col in self.value_ranges:
-                    min_val, max_val = self.value_ranges[col]
-                    if data[col].min() < min_val or data[col].max() > max_val:
-                        warnings.append(
-                            f"Column {col} has values outside expected range"
-                            f" [{min_val:.2f}, {max_val:.2f}]"
-                        )
-                
-                # Check categorical values
-                if col in self.categorical_values:
-                    invalid_values = set(data[col].unique()) - set(self.categorical_values[col])
-                    if invalid_values:
-                        warnings.append(
-                            f"Column {col} has unexpected categories: "
-                            f"{', '.join(map(str, invalid_values))}"
-                        )
-            
-            return ValidationResult(
-                is_valid=len(errors) == 0,
-                errors=errors,
-                warnings=warnings,
-                stats=current_stats
-            )
-            
-        except Exception as e:
-            logger.error(f"Validation failed: {str(e)}")
-            return ValidationResult(
-                is_valid=False,
-                errors=[f"Validation failed: {str(e)}"]
-            )
+            # Range validation
+            warnings.extend(self._validate_ranges(data))
+        
+        # Compute statistics
+        stats = self._compute_stats(data)
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            stats=stats
+        )
     
     def update_reference(self, new_reference: pd.DataFrame) -> None:
         """Update reference data"""
-        try:
-            # Update reference statistics
-            self.reference_stats = self._compute_statistics(new_reference)
-            
-            # Update schema and ranges
-            self.schema = self._infer_schema(new_reference)
-            self.value_ranges = self._infer_ranges(new_reference)
-            self.categorical_values = self._infer_categories(new_reference)
-            
-            logger.info("Updated reference data")
-            
-        except Exception as e:
-            logger.error(f"Failed to update reference data: {str(e)}")
-            raise
+        self.initialize(new_reference)
