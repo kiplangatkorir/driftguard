@@ -1,13 +1,13 @@
-
+ 
 # **Drift Guard**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
-**Version:** 0.1.3
+**Version:** 0.1.4
 
-**DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.
+**DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.  
 
 ## Why DriftGuard?  
-Models are powerful, but they aren't immune to change. Data drift and concept drift are inevitable as the world changes around you. DriftMonitor helps by automatically monitoring your model's predictions and data features to ensure they're still working as expected.  
+Models are powerful, but they aren't immune to change. Data drift and concept drift are inevitable as the world changes around you. DriftGuard helps by automatically monitoring your model's predictions and data features to ensure they're still working as expected.  
 
 **Concept drift** occurs when the underlying relationship between input data and predictions changes over time. **Data drift** happens when the distribution of your input data shifts, which can degrade model performance.  
 
@@ -52,7 +52,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
-# Initialize DriftMonitor
+# Initialize DriftGuard
 monitor = Wrapper(
     model=model,
     reference_data=X_train,
@@ -75,14 +75,14 @@ It’s that simple. You can now monitor how well your model performs over time a
 When the relationship between inputs and outputs changes over time, that’s concept drift. Imagine you have a model that predicts house prices, but after a while, the factors that drive those prices shift. Concept drift happens when the model's understanding of what affects price changes as well.
 
 ### Data Drift  
-Data drift is when the distribution of the input data changes. For example, if your model is trained on customer data from the last year, but this year’s data has a slightly different distribution, this is data drift. DriftMonitor catches that shift and lets you know when it happens.
+Data drift is when the distribution of the input data changes. For example, if your model is trained on customer data from the last year, but this year’s data has a slightly different distribution, this is data drift. DriftGuard catches that shift and lets you know when it happens.
 
 ### Detection Methods  
 - **KS Test**: A statistical test to compare distributions of features between two datasets.  
 - **JSD**: Measures how similar two probability distributions are.  
 - **PSI**: Used for categorical and continuous features, helps track distribution stability.
 
-DriftMonitor uses these techniques (and more) to detect when your model or data is drifting.
+DriftGuard uses these techniques (and more) to detect when your model or data is drifting.
 
 ## Integration Examples  
 
@@ -95,8 +95,8 @@ from driftguard import Wrapper
 
 app = FastAPI()
 
-# Initialize DriftMonitor
-drift_monitor = Wrapper(
+# Initialize DriftGuard
+drift_guard = Wrapper(
     model=trained_model,
     reference_data=training_data,
     alert_email="ml-team@company.com"
@@ -105,7 +105,7 @@ drift_monitor = Wrapper(
 @app.post("/predict")
 async def predict(data: dict):
     input_data = pd.DataFrame([data])
-    monitor_results = drift_monitor.monitor(input_data)
+    monitor_results = drift_guard.monitor(input_data)
     prediction = trained_model.predict(input_data)[0]
     
     return {
@@ -117,7 +117,7 @@ async def predict(data: dict):
 This is just one way you can use DriftGuard. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
 
 ## Contributing  
-Want to contribute? Awesome! Here’s how you can help:
+Want to contribute? Awesome! We have alot of issues. Here’s how you can help:
 1. Fork the repository.
 2. Make your changes.
 3. Submit a pull request!
