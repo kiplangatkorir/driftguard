@@ -352,8 +352,8 @@ class RegressionModelMonitor(BaseModelMonitor):
         metadata["residual_stats"] = {
             "mean": float(residuals.mean()),
             "std": float(residuals.std()),
-            "skew": float(stats.skew(residuals)),
-            "kurtosis": float(stats.kurtosis(residuals))
+            "skew": float(np.mean(residuals**3) / (np.std(residuals)**3)),
+            "kurtosis": float(np.mean(residuals**4) / (np.std(residuals)**4))
         }
         
         return super().track_performance(features, predictions, actual, metadata)
@@ -370,3 +370,168 @@ def create_model_monitor(
         return RegressionModelMonitor(config, state_manager)
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
+
+class ModelMonitor(IModelMonitor):
+    """Model performance monitoring"""
+    
+    def __init__(
+        self,
+        model_type: str = "classification",
+        metrics: Optional[List[str]] = None,
+        window_size: int = 1000
+    ):
+        """Initialize monitor"""
+        self.model_type = model_type
+        self.metrics = metrics or self._default_metrics()
+        self.window_size = window_size
+        self.model = None
+        self.reference_data = None
+        self.reference_performance = {}
+        
+        # Validate model type
+        if model_type not in ["classification", "regression"]:
+            raise ValueError(
+                "Model type must be 'classification' or 'regression'"
+            )
+    
+    def _default_metrics(self) -> List[str]:
+        """Get default metrics based on model type"""
+        if self.model_type == "classification":
+            return ["accuracy", "f1", "roc_auc"]
+        return ["mse", "rmse", "mae"]
+    
+    def initialize(
+        self,
+        model: Any,
+        reference_data: pd.DataFrame
+    ) -> None:
+        """Initialize monitor with model and reference data"""
+        try:
+            self.model = model
+            self.reference_data = reference_data.copy()
+            logger.info("Initialized model monitor")
+        except Exception as e:
+            logger.error(f"Failed to initialize monitor: {str(e)}")
+            raise
+    
+    def _compute_classification_metrics(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        y_prob: Optional[np.ndarray] = None
+    ) -> Dict[str, float]:
+        """Compute classification metrics"""
+        results = {}
+        
+        if "accuracy" in self.metrics:
+            results["accuracy"] = metrics.accuracy_score(y_true, y_pred)
+        
+        if "precision" in self.metrics:
+            results["precision"] = metrics.precision_score(
+                y_true, y_pred, average='weighted'
+            )
+        
+        if "recall" in self.metrics:
+            results["recall"] = metrics.recall_score(
+                y_true, y_pred, average='weighted'
+            )
+        
+        if "f1" in self.metrics:
+            results["f1"] = metrics.f1_score(
+                y_true, y_pred, average='weighted'
+            )
+        
+        if "roc_auc" in self.metrics and y_prob is not None:
+            # For multiclass, compute one-vs-rest ROC AUC
+            results["roc_auc"] = metrics.roc_auc_score(
+                y_true,
+                y_prob,
+                multi_class='ovr'
+            )
+        
+        return results
+    
+    def _compute_regression_metrics(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray
+    ) -> Dict[str, float]:
+        """Compute regression metrics"""
+        results = {}
+        
+        if "mse" in self.metrics:
+            results["mse"] = metrics.mean_squared_error(y_true, y_pred)
+        
+        if "rmse" in self.metrics:
+            results["rmse"] = np.sqrt(
+                metrics.mean_squared_error(y_true, y_pred)
+            )
+        
+        if "mae" in self.metrics:
+            results["mae"] = metrics.mean_absolute_error(y_true, y_pred)
+        
+        return results
+    
+    def track_performance(
+        self,
+        data: pd.DataFrame,
+        actual_labels: Union[pd.Series, np.ndarray]
+    ) -> List[MetricReport]:
+        """Track model performance"""
+        if self.model is None:
+            raise ValueError("Monitor not initialized")
+        
+        try:
+            # Get predictions
+            y_pred = self.model.predict(data)
+            y_prob = None
+            if hasattr(self.model, "predict_proba"):
+                y_prob = self.model.predict_proba(data)
+            
+            # Compute metrics
+            if self.model_type == "classification":
+                results = self._compute_classification_metrics(
+                    actual_labels, y_pred, y_prob
+                )
+            else:
+                results = self._compute_regression_metrics(
+                    actual_labels, y_pred
+                )
+            
+            # Create metric reports
+            reports = []
+            for metric_name, value in results.items():
+                reports.append(MetricReport(
+                    metric_name=metric_name,
+                    value=float(value),
+                    threshold=0.1,  # Default threshold
+                    exceeds_threshold=False,  # Will be set by monitor
+                    timestamp=datetime.now()
+                ))
+            
+            return reports
+            
+        except Exception as e:
+            logger.error(f"Failed to track performance: {str(e)}")
+            raise
+    
+    def update_reference(
+        self,
+        new_reference: pd.DataFrame,
+        new_labels: Optional[pd.Series] = None
+    ) -> None:
+        """Update reference data"""
+        try:
+            self.reference_data = new_reference.copy()
+            
+            # Update reference performance if labels provided
+            if new_labels is not None:
+                self.reference_performance = {}
+                reports = self.track_performance(new_reference, new_labels)
+                for report in reports:
+                    self.reference_performance[report.metric_name] = report.value
+            
+            logger.info("Updated reference data")
+        except Exception as e:
+            logger.error(f"Failed to update reference data: {str(e)}")
+            raise
