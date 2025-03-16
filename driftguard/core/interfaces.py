@@ -2,102 +2,63 @@
 Core interfaces and data models for DriftGuard.
 """
 from typing import Dict, List, Optional, Protocol
+from enum import Enum
 import pandas as pd
 from datetime import datetime
 from pydantic import BaseModel
 
+class DriftMethod(str, Enum):
+    """Drift detection methods"""
+    KS_TEST = "ks_test"
+    JSD = "jsd"
+    PSI = "psi"
+
+class AlertSeverity(str, Enum):
+    """Alert severity levels"""
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
 class DriftReport(BaseModel):
-    """Report containing drift detection results"""
-    feature_name: str
-    drift_score: float
+    """Drift detection report"""
+    feature: str
+    method: DriftMethod
+    statistic: float
     p_value: Optional[float] = None
     threshold: float
-    method: str
     has_drift: bool
+    timestamp: datetime
+
+class ValidationResult(BaseModel):
+    """Data validation result"""
+    is_valid: bool
+    errors: List[str]
+    warnings: List[str]
+
+class Alert(BaseModel):
+    """Alert model"""
+    id: str
+    message: str
+    alert_type: str
+    severity: AlertSeverity
+    timestamp: datetime
+    metadata: Dict
 
 class IDriftDetector(Protocol):
-    """Interface for drift detection"""
-    
+    """Interface for drift detectors"""
     def initialize(self, reference_data: pd.DataFrame) -> None:
-        """Initialize with reference data"""
+        """Initialize detector with reference data"""
         ...
     
     def detect_drift(self, new_data: pd.DataFrame) -> List[DriftReport]:
         """Detect drift in new data"""
         ...
-    
-    def update_reference(self, new_reference: pd.DataFrame) -> None:
-        """Update reference data"""
-        ...
-
-class IStateManager(Protocol):
-    """Interface for state management"""
-    
-    def save_state(self, state: Dict) -> None:
-        """Save current state"""
-        ...
-    
-    def load_state(self) -> Dict:
-        """Load saved state"""
-        ...
-    
-    def update_metrics(
-        self,
-        metrics: Dict[str, float],
-        timestamp: Optional[datetime] = None
-    ) -> None:
-        """Update metrics history"""
-        ...
-    
-    def get_metrics_history(
-        self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """Get metrics history"""
-        ...
-    
-    def get_system_status(self) -> Dict:
-        """Get system status"""
-        ...
-
-class IAlertManager(Protocol):
-    """Interface for alert management"""
-    
-    def create_alert(
-        self,
-        message: str,
-        alert_type: str,
-        severity: str = "info",
-        metadata: Optional[Dict] = None
-    ) -> None:
-        """Create new alert"""
-        ...
-    
-    def get_alerts(
-        self,
-        alert_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> List[Dict]:
-        """Get filtered alerts"""
-        ...
-    
-    def clear_alerts(
-        self,
-        alert_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        older_than: Optional[datetime] = None
-    ) -> int:
-        """Clear alerts matching criteria"""
-        ...
 
 class IModelMonitor(Protocol):
-    """Interface for model monitoring"""
-    
+    """Interface for model monitors"""
     def initialize(self, model_type: str) -> None:
-        """Initialize monitor for specific model type"""
+        """Initialize monitor"""
         ...
     
     def track_performance(
@@ -116,11 +77,61 @@ class IModelMonitor(Protocol):
     ) -> bool:
         """Check for performance degradation"""
         ...
+
+class IDataValidator(Protocol):
+    """Interface for data validators"""
+    def initialize(self, reference_data: pd.DataFrame) -> None:
+        """Initialize validator with reference data"""
+        ...
     
-    def get_performance_metrics(
+    def validate(self, data: pd.DataFrame) -> ValidationResult:
+        """Validate data"""
+        ...
+
+class IStateManager(Protocol):
+    """Interface for state managers"""
+    def save_state(self, state: Dict) -> None:
+        """Save state"""
+        ...
+    
+    def load_state(self) -> Dict:
+        """Load state"""
+        ...
+    
+    def update_metrics(self, metrics: Dict[str, float]) -> None:
+        """Update metrics"""
+        ...
+    
+    def get_metrics_history(self) -> pd.DataFrame:
+        """Get metrics history"""
+        ...
+
+class IAlertManager(Protocol):
+    """Interface for alert managers"""
+    def create_alert(
         self,
+        message: str,
+        alert_type: str,
+        severity: AlertSeverity,
+        metadata: Optional[Dict] = None
+    ) -> Alert:
+        """Create alert"""
+        ...
+    
+    def get_alerts(
+        self,
+        alert_type: Optional[str] = None,
+        severity: Optional[AlertSeverity] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """Get performance metrics history"""
+    ) -> List[Alert]:
+        """Get alerts"""
+        ...
+    
+    def clear_alerts(
+        self,
+        alert_type: Optional[str] = None,
+        severity: Optional[AlertSeverity] = None
+    ) -> int:
+        """Clear alerts"""
         ...
