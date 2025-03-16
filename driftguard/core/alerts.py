@@ -1,184 +1,245 @@
 """
 Alert management module for DriftGuard.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import smtplib
+import logging
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-import logging
-from pydantic import BaseModel, EmailStr
 
 from .interfaces import IAlertManager
 from .config import AlertConfig
 
 logger = logging.getLogger(__name__)
 
-class Alert(BaseModel):
-    """Alert model"""
-    id: str
-    type: str
-    message: str
-    severity: str
-    timestamp: datetime
-    metadata: Dict = {}
-
-class AlertManager(IAlertManager):
-    """Manages alerts and notifications"""
-    
-    def __init__(self, config: AlertConfig):
-        """Initialize alert manager"""
-        self.config = config
-        self.alerts: List[Alert] = []
-        self._setup_logger()
-    
-    def _setup_logger(self) -> None:
-        """Setup logging"""
-        if self.config.log_file:
-            handler = logging.FileHandler(self.config.log_file)
-            handler.setFormatter(
-                logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-                )
-            )
-            logger.addHandler(handler)
-            logger.setLevel(self.config.log_level)
-    
-    def _generate_alert_id(self) -> str:
-        """Generate unique alert ID"""
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        count = len(self.alerts) + 1
-        return f"alert_{timestamp}_{count}"
-    
-    def create_alert(
+class Alert:
+    """Alert data model"""
+    def __init__(
         self,
         message: str,
-        alert_type: str,
-        severity: str = "info",
+        severity: str,
+        source: str,
+        timestamp: Optional[datetime] = None,
         metadata: Optional[Dict] = None
-    ) -> Alert:
-        """Create new alert"""
-        alert = Alert(
-            id=self._generate_alert_id(),
-            type=alert_type,
-            message=message,
-            severity=severity,
-            timestamp=datetime.now(),
-            metadata=metadata or {}
-        )
-        
-        self.alerts.append(alert)
-        logger.info(f"Created alert: {alert.id} - {alert.message}")
-        
-        # Send notifications if configured
-        if self.config.email_enabled and severity in self.config.email_severity_levels:
-            self._send_email_notification(alert)
-        
-        return alert
+    ):
+        self.message = message
+        self.severity = severity.upper()
+        self.source = source
+        self.timestamp = timestamp or datetime.now()
+        self.metadata = metadata or {}
     
-    def _send_email_notification(self, alert: Alert) -> None:
+    def to_dict(self) -> Dict:
+        """Convert alert to dictionary"""
+        return {
+            'message': self.message,
+            'severity': self.severity,
+            'source': self.source,
+            'timestamp': self.timestamp.isoformat(),
+            'metadata': self.metadata
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Alert':
+        """Create alert from dictionary"""
+        return cls(
+            message=data['message'],
+            severity=data['severity'],
+            source=data['source'],
+            timestamp=datetime.fromisoformat(data['timestamp']),
+            metadata=data.get('metadata', {})
+        )
+
+class EmailNotifier:
+    """Email notification handler"""
+    def __init__(self, config: AlertConfig):
+        """Initialize email notifier"""
+        self.config = config
+        self._validate_config()
+    
+    def _validate_config(self) -> None:
+        """Validate email configuration"""
+        required = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password']
+        missing = [f for f in required if not self.config.email.get(f)]
+        if missing:
+            raise ValueError(
+                f"Missing required email configuration: {', '.join(missing)}"
+            )
+    
+    def send_email(
+        self,
+        subject: str,
+        body: str,
+        recipients: Optional[List[str]] = None
+    ) -> None:
         """Send email notification"""
-        if not self.config.email_recipients:
-            logger.warning("No email recipients configured")
+        if not recipients:
+            recipients = self.config.email.get('default_recipients', [])
+        
+        if not recipients:
+            logger.warning("No recipients specified for email notification")
             return
         
         try:
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = self.config.email_sender
-            msg['To'] = ', '.join(self.config.email_recipients)
-            msg['Subject'] = f"DriftGuard Alert: {alert.type} - {alert.severity}"
+            msg['From'] = self.config.email['smtp_user']
+            msg['To'] = ', '.join(recipients)
+            msg['Subject'] = subject
             
-            # Create email body
-            body = f"""
-            Alert Details:
-            --------------
-            Type: {alert.type}
-            Severity: {alert.severity}
-            Time: {alert.timestamp}
-            Message: {alert.message}
-            
-            Metadata:
-            ---------
-            """
-            
-            for key, value in alert.metadata.items():
-                body += f"{key}: {value}\n"
-            
+            # Add body
             msg.attach(MIMEText(body, 'plain'))
             
-            # Send email
-            with smtplib.SMTP(self.config.smtp_host, self.config.smtp_port) as server:
-                if self.config.smtp_use_tls:
-                    server.starttls()
-                if self.config.smtp_username and self.config.smtp_password:
-                    server.login(
-                        self.config.smtp_username,
-                        self.config.smtp_password
-                    )
+            # Connect to SMTP server
+            with smtplib.SMTP(
+                self.config.email['smtp_host'],
+                self.config.email['smtp_port']
+            ) as server:
+                server.starttls()
+                server.login(
+                    self.config.email['smtp_user'],
+                    self.config.email['smtp_password']
+                )
                 server.send_message(msg)
             
-            logger.info(f"Sent email notification for alert {alert.id}")
-            
+            logger.info(f"Email notification sent to {len(recipients)} recipients")
+        
         except Exception as e:
-            logger.error(f"Failed to send email notification: {str(e)}")
+            logger.error(f"Failed to send email notification: {e}")
+            raise
+
+class AlertManager(IAlertManager):
+    """Manages alerts and notifications"""
+    
+    def __init__(self, config: Optional[AlertConfig] = None):
+        """Initialize alert manager"""
+        self.config = config or AlertConfig()
+        self.alerts: List[Alert] = []
+        self.email_notifier = None
+        
+        if self.config.email and self.config.email.get('enabled', False):
+            self.email_notifier = EmailNotifier(self.config)
+    
+    def add_alert(
+        self,
+        message: str,
+        severity: str,
+        source: str,
+        metadata: Optional[Dict] = None
+    ) -> None:
+        """Add new alert"""
+        # Validate severity
+        severity = severity.upper()
+        if severity not in self.config.severity_levels:
+            raise ValueError(
+                f"Invalid severity level. Must be one of: "
+                f"{', '.join(self.config.severity_levels)}"
+            )
+        
+        # Create and store alert
+        alert = Alert(
+            message=message,
+            severity=severity,
+            source=source,
+            metadata=metadata
+        )
+        self.alerts.append(alert)
+        
+        # Log alert
+        log_level = getattr(
+            logging,
+            severity,
+            logging.INFO
+        )
+        logger.log(log_level, f"[{source}] {message}")
+        
+        # Send notifications if needed
+        self._handle_notifications(alert)
     
     def get_alerts(
         self,
-        alert_type: Optional[str] = None,
-        severity: Optional[str] = None,
+        severity: Optional[Union[str, List[str]]] = None,
+        source: Optional[Union[str, List[str]]] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> List[Alert]:
         """Get filtered alerts"""
-        filtered_alerts = self.alerts
+        filtered = self.alerts
         
-        if alert_type:
-            filtered_alerts = [
-                a for a in filtered_alerts
-                if a.type == alert_type
-            ]
-        
+        # Filter by severity
         if severity:
-            filtered_alerts = [
-                a for a in filtered_alerts
-                if a.severity == severity
-            ]
+            if isinstance(severity, str):
+                severity = [severity.upper()]
+            else:
+                severity = [s.upper() for s in severity]
+            filtered = [a for a in filtered if a.severity in severity]
         
+        # Filter by source
+        if source:
+            if isinstance(source, str):
+                source = [source]
+            filtered = [a for a in filtered if a.source in source]
+        
+        # Filter by time range
         if start_time:
-            filtered_alerts = [
-                a for a in filtered_alerts
-                if a.timestamp >= start_time
-            ]
-        
+            filtered = [a for a in filtered if a.timestamp >= start_time]
         if end_time:
-            filtered_alerts = [
-                a for a in filtered_alerts
-                if a.timestamp <= end_time
-            ]
+            filtered = [a for a in filtered if a.timestamp <= end_time]
         
-        return filtered_alerts
+        return filtered
     
     def clear_alerts(
         self,
-        alert_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        older_than: Optional[datetime] = None
-    ) -> int:
-        """Clear alerts matching criteria"""
-        initial_count = len(self.alerts)
+        severity: Optional[Union[str, List[str]]] = None,
+        source: Optional[Union[str, List[str]]] = None
+    ) -> None:
+        """Clear alerts matching filters"""
+        if severity:
+            if isinstance(severity, str):
+                severity = [severity.upper()]
+            else:
+                severity = [s.upper() for s in severity]
         
-        if alert_type or severity or older_than:
-            self.alerts = [
-                alert for alert in self.alerts
-                if (alert_type and alert.type != alert_type) or
-                (severity and alert.severity != severity) or
-                (older_than and alert.timestamp > older_than)
-            ]
-        else:
-            self.alerts = []
+        if source:
+            if isinstance(source, str):
+                source = [source]
         
-        cleared_count = initial_count - len(self.alerts)
-        logger.info(f"Cleared {cleared_count} alerts")
+        self.alerts = [
+            alert for alert in self.alerts
+            if (severity and alert.severity not in severity) or
+               (source and alert.source not in source)
+        ]
+    
+    def _handle_notifications(self, alert: Alert) -> None:
+        """Handle notifications for alert"""
+        # Check if severity requires notification
+        if alert.severity not in self.config.notify_on_severity:
+            return
         
-        return cleared_count
+        # Send email notification if configured
+        if self.email_notifier:
+            try:
+                subject = (
+                    f"[DriftGuard {alert.severity}] "
+                    f"Alert from {alert.source}"
+                )
+                
+                body = (
+                    f"Alert Details:\n"
+                    f"Severity: {alert.severity}\n"
+                    f"Source: {alert.source}\n"
+                    f"Time: {alert.timestamp}\n"
+                    f"Message: {alert.message}\n"
+                )
+                
+                if alert.metadata:
+                    body += "\nMetadata:\n"
+                    for key, value in alert.metadata.items():
+                        body += f"{key}: {value}\n"
+                
+                self.email_notifier.send_email(subject, body)
+            
+            except Exception as e:
+                logger.error(
+                    f"Failed to send email notification for alert: {e}"
+                )
