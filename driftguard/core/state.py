@@ -1,209 +1,155 @@
 """
-State management for DriftGuard.
-Handles persistence of monitoring state and metrics.
+State management module for DriftGuard.
+Handles persistence of monitoring state, metrics, and drift history.
 """
-from typing import Any, Dict, List, Optional, Union
-import json
+from typing import Any, Dict, List, Optional
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-import logging
+from datetime import datetime
+import json
 from pathlib import Path
-from .interfaces import IStateManager, StorageConfig
+import logging
+from .interfaces import IStateManager
 
 logger = logging.getLogger(__name__)
 
 class StateManager(IStateManager):
-    """Manages monitoring state and metrics history"""
+    """Manages persistence of monitoring state"""
     
-    def __init__(self, config: StorageConfig):
+    def __init__(self, config: Dict[str, Any]):
         """Initialize state manager"""
         self.config = config
-        self.storage_path = Path(config.path)
-        self._initialize_storage()
+        self.storage_path = Path(config['path'])
+        self.metrics_file = self.storage_path / 'metrics.csv'
+        self.state_file = self.storage_path / 'state.json'
         
-        # In-memory cache
-        self._state: Dict[str, Any] = {}
-        self._metrics_history: List[Dict[str, Any]] = []
-        self._warnings: List[Dict[str, Any]] = []
+        # Create storage directory if it doesn't exist
+        self.storage_path.mkdir(parents=True, exist_ok=True)
         
-        # Load existing state if available
-        self._load_persisted_state()
-    
-    def _initialize_storage(self) -> None:
-        """Initialize storage directory structure"""
-        try:
-            # Create main storage directory
-            self.storage_path.mkdir(parents=True, exist_ok=True)
-            
-            # Create subdirectories
-            (self.storage_path / "metrics").mkdir(exist_ok=True)
-            (self.storage_path / "state").mkdir(exist_ok=True)
-            (self.storage_path / "warnings").mkdir(exist_ok=True)
-            
-            logger.info(f"Initialized storage at {self.storage_path}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize storage: {str(e)}")
-            raise
-    
-    def _load_persisted_state(self) -> None:
-        """Load persisted state from storage"""
-        try:
-            # Load state
-            state_file = self.storage_path / "state" / "current_state.json"
-            if state_file.exists():
-                with open(state_file, 'r') as f:
-                    self._state = json.load(f)
-            
-            # Load metrics history
-            metrics_file = self.storage_path / "metrics" / "history.json"
-            if metrics_file.exists():
-                with open(metrics_file, 'r') as f:
-                    self._metrics_history = json.load(f)
-            
-            # Load warnings
-            warnings_file = self.storage_path / "warnings" / "history.json"
-            if warnings_file.exists():
-                with open(warnings_file, 'r') as f:
-                    self._warnings = json.load(f)
-            
-            logger.info("Loaded persisted state")
-            
-        except Exception as e:
-            logger.error(f"Failed to load persisted state: {str(e)}")
-            self._state = {}
-            self._metrics_history = []
-            self._warnings = []
-    
-    def _persist_state(self) -> None:
-        """Persist current state to storage"""
-        try:
-            # Save state
-            with open(self.storage_path / "state" / "current_state.json", 'w') as f:
-                json.dump(self._state, f, indent=2, default=str)
-            
-            # Save metrics history
-            with open(self.storage_path / "metrics" / "history.json", 'w') as f:
-                json.dump(self._metrics_history, f, indent=2, default=str)
-            
-            # Save warnings
-            with open(self.storage_path / "warnings" / "history.json", 'w') as f:
-                json.dump(self._warnings, f, indent=2, default=str)
-            
-        except Exception as e:
-            logger.error(f"Failed to persist state: {str(e)}")
-            raise
-    
-    def _cleanup_old_data(self) -> None:
-        """Clean up data older than retention period"""
-        if not self.config.retention_days:
-            return
-            
-        cutoff_date = datetime.now() - timedelta(days=self.config.retention_days)
+        # Initialize empty state if not exists
+        if not self.state_file.exists():
+            self.save_state({
+                'last_update': datetime.now().isoformat(),
+                'monitoring': {
+                    'total_samples_processed': 0,
+                    'last_drift_detected': None
+                }
+            })
         
-        # Clean up metrics history
-        self._metrics_history = [
-            entry for entry in self._metrics_history
-            if datetime.fromisoformat(entry['timestamp']) > cutoff_date
-        ]
-        
-        # Clean up warnings
-        self._warnings = [
-            entry for entry in self._warnings
-            if datetime.fromisoformat(entry['timestamp']) > cutoff_date
-        ]
-        
-        # Persist cleaned state
-        self._persist_state()
-        logger.info(f"Cleaned up data older than {cutoff_date}")
+        # Initialize empty metrics file if not exists
+        if not self.metrics_file.exists():
+            pd.DataFrame(columns=['timestamp']).to_csv(
+                self.metrics_file,
+                index=False
+            )
     
     def save_state(self, state: Dict[str, Any]) -> None:
         """Save current state"""
-        self._state.update(state)
-        self._persist_state()
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump(state, f, indent=2)
+            logger.debug("Saved state")
+        except Exception as e:
+            logger.error(f"Failed to save state: {str(e)}")
+            raise
     
     def load_state(self) -> Dict[str, Any]:
-        """Load current state"""
-        return self._state.copy()
+        """Load saved state"""
+        try:
+            with open(self.state_file, 'r') as f:
+                state = json.load(f)
+            return state
+        except Exception as e:
+            logger.error(f"Failed to load state: {str(e)}")
+            raise
     
     def update_metrics(
         self,
         metrics: Dict[str, float],
-        timestamp: datetime
+        timestamp: Optional[datetime] = None
     ) -> None:
         """Update metrics history"""
-        entry = {
-            "timestamp": timestamp.isoformat(),
-            "metrics": metrics
-        }
-        
-        self._metrics_history.append(entry)
-        self._persist_state()
-        
-        # Clean up old data if needed
-        if len(self._metrics_history) % 100 == 0:  # Periodic cleanup
-            self._cleanup_old_data()
+        try:
+            # Load existing metrics
+            df = pd.read_csv(self.metrics_file)
+            
+            # Create new row
+            new_row = {
+                'timestamp': timestamp or datetime.now()
+            }
+            new_row.update(metrics)
+            
+            # Append new row
+            df = pd.concat([
+                df,
+                pd.DataFrame([new_row])
+            ], ignore_index=True)
+            
+            # Apply retention policy
+            if self.config['retention_days']:
+                cutoff = pd.Timestamp.now() - pd.Timedelta(
+                    days=self.config['retention_days']
+                )
+                df = df[pd.to_datetime(df['timestamp']) > cutoff]
+            
+            # Save updated metrics
+            df.to_csv(self.metrics_file, index=False)
+            logger.debug("Updated metrics")
+            
+        except Exception as e:
+            logger.error(f"Failed to update metrics: {str(e)}")
+            raise
     
     def get_metrics_history(
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> pd.DataFrame:
-        """Get metrics history as DataFrame"""
-        if not self._metrics_history:
-            return pd.DataFrame()
-        
-        # Convert to DataFrame
-        df = pd.DataFrame([
-            {
-                "timestamp": datetime.fromisoformat(entry['timestamp']),
-                **entry['metrics']
-            }
-            for entry in self._metrics_history
-        ])
-        
-        # Sort by timestamp
-        df = df.sort_values('timestamp')
-        
-        # Filter by time range
-        if start_time:
-            df = df[df['timestamp'] >= start_time]
-        if end_time:
-            df = df[df['timestamp'] <= end_time]
-        
-        return df
-    
-    def add_warning(self, message: str) -> None:
-        """Add warning message"""
-        warning = {
-            "timestamp": datetime.now().isoformat(),
-            "message": message
-        }
-        
-        self._warnings.append(warning)
-        self._persist_state()
+        """Get metrics history"""
+        try:
+            # Load metrics
+            df = pd.read_csv(self.metrics_file)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Apply time filters
+            if start_time:
+                df = df[df['timestamp'] >= start_time]
+            if end_time:
+                df = df[df['timestamp'] <= end_time]
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to get metrics history: {str(e)}")
+            raise
     
     def get_system_status(self) -> Dict[str, Any]:
-        """Get system status summary"""
-        now = datetime.now()
-        
-        # Get recent metrics
-        recent_metrics = self.get_metrics_history(
-            start_time=now - timedelta(hours=24)
-        )
-        
-        # Get recent warnings
-        recent_warnings = [
-            w for w in self._warnings
-            if datetime.fromisoformat(w['timestamp']) > now - timedelta(hours=24)
-        ]
-        
-        return {
-            "last_update": self._state.get("last_update"),
-            "metrics_count": len(self._metrics_history),
-            "recent_metrics_count": len(recent_metrics),
-            "recent_warnings_count": len(recent_warnings),
-            "storage_path": str(self.storage_path),
-            "retention_days": self.config.retention_days
-        }
+        """Get system status"""
+        try:
+            state = self.load_state()
+            metrics_df = self.get_metrics_history(
+                start_time=datetime.now() - pd.Timedelta(days=7)
+            )
+            
+            status = {
+                'last_update': state['last_update'],
+                'monitoring': state['monitoring'],
+                'metrics': {
+                    'last_7_days': {
+                        col: {
+                            'mean': metrics_df[col].mean(),
+                            'std': metrics_df[col].std(),
+                            'min': metrics_df[col].min(),
+                            'max': metrics_df[col].max()
+                        }
+                        for col in metrics_df.columns
+                        if col != 'timestamp'
+                    }
+                }
+            }
+            
+            return status
+            
+        except Exception as e:
+            logger.error(f"Failed to get system status: {str(e)}")
+            raise
