@@ -20,7 +20,7 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 - **Alert System**: Get email alerts whenever drift is detected.  
 - **Easy to Integrate**: No complicated setup – just plug it into your existing machine learning pipeline.  
 
-## Install  
+## Install   
 To install DriftGuard, simply run:
 
 ```bash
