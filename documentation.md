@@ -1,4 +1,4 @@
-# Drift Guard Documentation
+# Drift Guard 
  
 ## Overview
 Drift Guard is a Python package that helps you monitor machine learning models in production for data drift and performance degradation. It provides automated monitoring, drift detection, and alerting capabilities with minimal setup required. 
