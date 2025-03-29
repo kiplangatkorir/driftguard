@@ -15,13 +15,9 @@ email:
   use_tls: true
   retry_count: 3
   recipients:
-    - alerts@yourdomain.com
+    - driftguardalerts@gmail.com  # Default recipient, can be changed
   template_dir: templates/email
 
 # Slack Channel Configuration
 slack:
-  enabled: false  # Enable and configure when needed
-  webhook_url: ${DRIFTGUARD_SLACK_WEBHOOK}
-  channel: "#model-alerts"
-  username: DriftGuard
-  icon_emoji: ":robot_face:"
+  enabled: false  # Disabled as per user request
