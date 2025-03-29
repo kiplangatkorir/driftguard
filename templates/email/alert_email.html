@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .severity {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .metadata {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-right: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DriftGuard Alert</h1>
+        <p class="severity">{{ alert.severity }}</p>
+    </div>
+
+    <h2>Alert Details</h2>
+    <p><strong>Message:</strong> {{ alert.message }}</p>
+    <p><strong>Time:</strong> {{ alert.timestamp }}</p>
+    <p><strong>Source:</strong> {{ alert.source }}</p>
+    
+    {% if alert.tags %}
+    <p><strong>Tags:</strong>
+        {% for tag in alert.tags %}
+        <span class="tag">{{ tag }}</span>
+        {% endfor %}
+    </p>
+    {% endif %}
+
+    {% if alert.metadata %}
+    <h2>Metadata</h2>
+    <div class="metadata">
+        <pre>{{ alert.metadata | tojson(indent=2) }}</pre>
+    </div>
+    {% endif %}
+</body>
+</html>
