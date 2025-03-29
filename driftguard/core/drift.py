@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any, Callable
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.spatial.distance import wasserstein_distance
+from scipy.stats import wasserstein_distance
 from scipy.special import rel_entr
 from collections import defaultdict
 import logging
@@ -205,7 +205,7 @@ class DriftDetector(IDriftDetector):
             ref_normalized = (ref_values - np.mean(ref_values)) / np.std(ref_values)
             new_normalized = (new_values - np.mean(new_values)) / np.std(new_values)
             
-            distance = wasserstein_distance(ref_normalized, new_normalized)
+            distance = stats.wasserstein_distance(ref_normalized, new_normalized)
             
             if distance > threshold:
                 reports.append(DriftReport(

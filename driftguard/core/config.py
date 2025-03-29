@@ -3,9 +3,13 @@ Enhanced configuration module for DriftGuard v0.1.5.
 Includes advanced monitoring, alerting, and ML options.
 """
 from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator, validator, root_validator
 from datetime import timedelta
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class MLConfig(BaseModel):
     """Machine learning configuration settings"""
@@ -47,6 +51,22 @@ class EmailConfig(BaseModel):
     def validate_security(cls, values):
         if values.get('use_ssl') and values.get('use_tls'):
             raise ValueError("Cannot use both SSL and TLS")
+        return values
+    
+    @model_validator(mode='after')
+    def check_credentials(cls, values):
+        """Check if email credentials are provided or in environment."""
+        username = values.smtp_user or os.getenv("DRIFTGUARD_EMAIL_USER")
+        password = values.smtp_password or os.getenv("DRIFTGUARD_EMAIL_PASSWORD")
+        
+        if not username or not password:
+            raise ValueError(
+                "Email credentials must be provided either in config "
+                "or as environment variables DRIFTGUARD_EMAIL_USER and DRIFTGUARD_EMAIL_PASSWORD"
+            )
+        
+        values.smtp_user = username
+        values.smtp_password = password
         return values
 
 class SlackConfig(BaseModel):
@@ -101,6 +121,15 @@ class AlertConfig(BaseModel):
                     f"Must be one of: {', '.join(valid)}"
                 )
         return v
+    
+    @model_validator(mode='after')
+    def check_email_config(cls, values):
+        """Check if email config is present when email is set."""
+        if values.email and not values.email.smtp_user:
+            values.email.smtp_user = os.getenv("DRIFTGUARD_EMAIL_USER")
+        if values.email and not values.email.smtp_password:
+            values.email.smtp_password = os.getenv("DRIFTGUARD_EMAIL_PASSWORD")
+        return values
 
 class DriftConfig(BaseModel):
     """Enhanced drift detection configuration"""
@@ -152,6 +181,17 @@ class DriftConfig(BaseModel):
     def validate_confidence(cls, v):
         if not 0 < v < 1:
             raise ValueError("Confidence level must be between 0 and 1")
+        return v
+    
+    @field_validator("methods")
+    def validate_drift_config(cls, v):
+        """Validate drift detection configuration."""
+        valid_methods = {"ks", "anderson", "wasserstein"}
+        for method in v:
+            if method not in valid_methods:
+                raise ValueError(f"Invalid drift detection method: {method}")
+            if method not in cls.thresholds:
+                raise ValueError(f"Missing threshold for method: {method}")
         return v
 
 class MonitorConfig(BaseModel):
@@ -215,6 +255,18 @@ class MonitorConfig(BaseModel):
     def validate_sizes(cls, v):
         if v < 10:
             raise ValueError("Size must be at least 10")
+        return v
+    
+    @field_validator("metrics")
+    def validate_monitor_config(cls, v):
+        """Validate monitoring configuration."""
+        valid_metrics = {
+            "accuracy", "precision", "recall", "f1", 
+            "roc_auc", "log_loss", "brier_score"
+        }
+        for metric in v:
+            if metric not in valid_metrics:
+                raise ValueError(f"Invalid metric: {metric}")
         return v
 
 class StorageConfig(BaseModel):
