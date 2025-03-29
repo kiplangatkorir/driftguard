@@ -3,7 +3,7 @@ Enhanced configuration module for DriftGuard v0.1.5.
 Includes advanced monitoring, alerting, and ML options.
 """
 from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator, validator
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
@@ -47,7 +47,7 @@ class EmailConfig(BaseModel):
             raise ValueError("SMTP port must be between 0 and 65535")
         return v
     
-    @root_validator
+    @model_validator(mode='after')
     def validate_security(cls, values):
         if values.get('use_ssl') and values.get('use_tls'):
             raise ValueError("Cannot use both SSL and TLS")
