@@ -6,7 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import numpy as np
-from driftguard.wrapper import Wrapper
+from driftguard import DriftGuard, Config, DriftConfig, MonitorConfig
+import json
 
 # Load example dataset
 data = load_iris()
@@ -20,40 +21,50 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
-# Initialize drift monitoring
-monitor = Wrapper(
-    model=model,
-    reference_data=X_train,
-    alert_email="korirg543@gmail.com",  
-    monitor_name="Iris Classifier Monitor"
-)
-
-# Function to simulate some drift
 def add_noise(data, noise_level=0.5):
-    return data + np.random.normal(0, noise_level, data.shape)
+    """Add random noise to simulate drift."""
+    return pd.DataFrame(
+        data.values + np.random.normal(0, noise_level, size=data.shape),
+        columns=data.columns
+    )
 
 # Example monitoring usage
 if __name__ == "__main__":
+    # Configure DriftGuard
+    config = Config(
+        drift=DriftConfig(
+            methods=["ks", "anderson"],
+            thresholds={"ks": 0.05, "anderson": 0.05}
+        ),
+        monitor=MonitorConfig(
+            metrics=["accuracy", "f1", "roc_auc"],
+            window_size=100
+        )
+    )
+    
+    # Initialize DriftGuard
+    guard = DriftGuard(
+        model=model,
+        reference_data=X_train,
+        config=config
+    )
+    
     # Monitor normal data
     print("\nMonitoring normal data...")
-    results = monitor.monitor(X_test, y_test)
-    print(f"Drift detected: {results['has_drift']}")
-    print(f"Performance: {results['performance']}")
+    normal_results = guard.monitor(X_test, y_test)
+    print("Normal data results:")
+    print(f"Drift detected: {normal_results['drift_detected']}")
+    print(f"Performance metrics: {normal_results['performance']}")
     
-    # Monitor data with drift
-    print("\nMonitoring data with drift...")
-    X_test_drift = pd.DataFrame(
-        add_noise(X_test.values, noise_level=1.0),
-        columns=X_test.columns
-    )
-    results = monitor.monitor(X_test_drift, y_test)
-    print(f"Drift detected: {results['has_drift']}")
-    if results['has_drift']:
-        print("Drift detected in features:", results['drift_detected_in'])
-    print(f"Performance: {results['performance']}")
+    # Monitor drifted data
+    print("\nMonitoring drifted data...")
+    X_drift = add_noise(X_test, noise_level=0.5)
+    drift_results = guard.monitor(X_drift, y_test)
+    print("Drift data results:")
+    print(f"Drift detected: {drift_results['drift_detected']}")
+    print(f"Performance metrics: {drift_results['performance']}")
     
-    # Get monitoring statistics
-    stats = monitor.get_monitoring_stats()
-    print("\nMonitoring Statistics:")
-    print(f"Total Alerts: {stats['alerts']['total_alerts']}")
-    print(f"Performance History: {stats['performance_history']}")
+    # Get monitoring summary
+    summary = guard.get_monitoring_summary()
+    print("\nMonitoring Summary:")
+    print(json.dumps(summary, indent=2))
