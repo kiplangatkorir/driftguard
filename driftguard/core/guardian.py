@@ -15,7 +15,7 @@ from .interfaces import (
     DriftReport,
     MetricReport
 )
-from .config import ModelConfig, DriftConfig
+from .config import Config, DriftConfig, ModelConfig
 from .drift import KSTestDriftDetector, JSDDriftDetector, PSIDriftDetector
 from .monitor import ModelMonitor
 from .validation import DataValidator
