@@ -9,6 +9,10 @@ from scipy.spatial.distance import wasserstein_distance
 from scipy.special import rel_entr
 from collections import defaultdict
 import logging
+from sklearn.preprocessing import StandardScaler
+from river import drift as river_drift
+import joblib
+from functools import lru_cache
 
 from .interfaces import IDriftDetector, DriftReport
 from .config import DriftConfig
@@ -16,48 +20,71 @@ from .config import DriftConfig
 logger = logging.getLogger(__name__)
 
 class DriftDetector(IDriftDetector):
-    """Detects data drift using multiple statistical methods"""
+    """Detects data drift using multiple statistical methods including multivariate analysis"""
     
     def __init__(self, config: Optional[DriftConfig] = None):
-        """Initialize drift detector"""
+        """Initialize drift detector with enhanced capabilities"""
         self.config = config or DriftConfig()
         self.reference_data = None
         self.feature_types = {}
         self.reference_stats = {}
         self._initialized = False
-    
-    def initialize(self, reference_data: pd.DataFrame) -> None:
-        """Initialize detector with reference data"""
-        if reference_data.empty:
-            raise ValueError("Reference data cannot be empty")
+        self.scaler = StandardScaler()
+        self.adwin_detectors = {}
+        self._cache = {}
         
-        self.reference_data = reference_data.copy()
-        
-        # Determine feature types
-        self.feature_types = {
-            col: 'categorical' if pd.api.types.is_categorical_dtype(reference_data[col])
-            or pd.api.types.is_object_dtype(reference_data[col])
-            else 'continuous'
-            for col in reference_data.columns
+    @lru_cache(maxsize=128)
+    def _compute_feature_stats(self, feature_name: str, data: np.ndarray) -> Dict:
+        """Cached computation of feature statistics"""
+        return {
+            'mean': np.mean(data),
+            'std': np.std(data),
+            'quantiles': np.percentile(data, [25, 50, 75])
         }
         
-        # Compute reference statistics
-        self.reference_stats = {}
-        for col in reference_data.columns:
-            if self.feature_types[col] == 'continuous':
-                values = reference_data[col].dropna()
-                self.reference_stats[col] = {
-                    'mean': values.mean(),
-                    'std': values.std(),
-                    'hist': np.histogram(values, bins=20)[0]
-                }
-            else:
-                self.reference_stats[col] = {
-                    'value_counts': reference_data[col].value_counts(normalize=True)
-                }
+    def initialize(self, reference_data: pd.DataFrame) -> None:
+        """Initialize detector with reference data and prepare multivariate analysis"""
+        if reference_data.empty:
+            raise ValueError("Reference data cannot be empty")
+            
+        self.reference_data = reference_data.copy()
+        self.feature_types = self._infer_feature_types(reference_data)
         
+        # Prepare multivariate analysis
+        numerical_cols = [col for col, type_ in self.feature_types.items() if type_ == 'numerical']
+        if numerical_cols:
+            self.scaler.fit(reference_data[numerical_cols])
+            
+        # Initialize ADWIN detectors for each feature
+        for feature in reference_data.columns:
+            self.adwin_detectors[feature] = river_drift.ADWIN()
+            
         self._initialized = True
-    
+        
+    def detect_multivariate_drift(self, new_data: pd.DataFrame) -> Dict[str, float]:
+        """Detect drift using multivariate analysis"""
+        numerical_cols = [col for col, type_ in self.feature_types.items() if type_ == 'numerical']
+        if not numerical_cols:
+            return {}
+            
+        ref_scaled = self.scaler.transform(self.reference_data[numerical_cols])
+        new_scaled = self.scaler.transform(new_data[numerical_cols])
+        
+        # Compute Mahalanobis distance
+        ref_cov = np.cov(ref_scaled.T)
+        ref_mean = np.mean(ref_scaled, axis=0)
+        
+        distances = []
+        for sample in new_scaled:
+            diff = sample - ref_mean
+            dist = np.sqrt(diff.dot(np.linalg.inv(ref_cov)).dot(diff))
+            distances.append(dist)
+            
+        return {
+            'mahalanobis_mean': np.mean(distances),
+            'mahalanobis_threshold': np.percentile(distances, 95)
+        }
+        
     def detect(self, data: pd.DataFrame) -> List[DriftReport]:
         """Detect drift in new data"""
         if not self._initialized:
@@ -80,8 +107,24 @@ class DriftDetector(IDriftDetector):
                 reports.extend(self._detect_wasserstein(data))
             elif method == 'chi2':
                 reports.extend(self._detect_chi2(data))
+            elif method == 'adwin':
+                reports.extend(self._detect_adwin(data))
+            elif method == 'multivariate':
+                reports.extend(self._detect_multivariate(data))
         
         return reports
+    
+    def _infer_feature_types(self, data: pd.DataFrame) -> Dict[str, str]:
+        """Infer feature types from data"""
+        feature_types = {}
+        for col in data.columns:
+            if pd.api.types.is_categorical_dtype(data[col]) or pd.api.types.is_object_dtype(data[col]):
+                feature_types[col] = 'categorical'
+            elif pd.api.types.is_numeric_dtype(data[col]):
+                feature_types[col] = 'numerical'
+            else:
+                raise ValueError(f"Unsupported data type for feature {col}")
+        return feature_types
     
     def _detect_ks(self, data: pd.DataFrame) -> List[DriftReport]:
         """Detect drift using Kolmogorov-Smirnov test"""
@@ -89,7 +132,7 @@ class DriftDetector(IDriftDetector):
         threshold = self.config.thresholds['ks']
         
         for col in self.reference_data.columns:
-            if self.feature_types[col] != 'continuous':
+            if self.feature_types[col] != 'numerical':
                 continue
             
             ref_values = self.reference_data[col].dropna()
@@ -118,7 +161,7 @@ class DriftDetector(IDriftDetector):
             ref_hist = None
             new_hist = None
             
-            if self.feature_types[col] == 'continuous':
+            if self.feature_types[col] == 'numerical':
                 ref_hist = self.reference_stats[col]['hist']
                 new_hist = np.histogram(
                     data[col].dropna(),
@@ -172,7 +215,7 @@ class DriftDetector(IDriftDetector):
             ref_hist = None
             new_hist = None
             
-            if self.feature_types[col] == 'continuous':
+            if self.feature_types[col] == 'numerical':
                 ref_hist = self.reference_stats[col]['hist']
                 new_hist = np.histogram(
                     data[col].dropna(),
@@ -219,7 +262,7 @@ class DriftDetector(IDriftDetector):
         threshold = self.config.thresholds.get('wasserstein', 0.1)
         
         for col in self.reference_data.columns:
-            if self.feature_types[col] != 'continuous':
+            if self.feature_types[col] != 'numerical':
                 continue
             
             ref_values = self.reference_data[col].dropna()
@@ -282,5 +325,44 @@ class DriftDetector(IDriftDetector):
                     threshold=threshold,
                     features=[col]
                 ))
+        
+        return reports
+    
+    def _detect_adwin(self, data: pd.DataFrame) -> List[DriftReport]:
+        """Detect drift using ADWIN"""
+        reports = []
+        threshold = self.config.thresholds.get('adwin', 0.05)
+        
+        for col in self.reference_data.columns:
+            detector = self.adwin_detectors[col]
+            values = data[col].dropna()
+            
+            for value in values:
+                detector.update(value)
+                
+                if detector.drift_detected:
+                    reports.append(DriftReport(
+                        method='adwin',
+                        score=detector.estimation,
+                        threshold=threshold,
+                        features=[col]
+                    ))
+        
+        return reports
+    
+    def _detect_multivariate(self, data: pd.DataFrame) -> List[DriftReport]:
+        """Detect drift using multivariate analysis"""
+        reports = []
+        threshold = self.config.thresholds.get('multivariate', 0.05)
+        
+        result = self.detect_multivariate_drift(data)
+        
+        if result:
+            reports.append(DriftReport(
+                method='multivariate',
+                score=result['mahalanobis_mean'],
+                threshold=threshold,
+                features=list(data.columns)
+            ))
         
         return reports
