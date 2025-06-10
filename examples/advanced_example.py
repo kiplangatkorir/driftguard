@@ -4,6 +4,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import shap
 from driftguard.core.drift import DriftDetector
 from driftguard.core.monitor import ModelMonitor
 from driftguard.core.alert_manager import AlertManager
@@ -44,8 +45,14 @@ def setup_monitoring_example():
 
 def train_initial_model(X_train, y_train):
     """Train initial model version."""
-    model = LogisticRegression(max_iter=1000)
+    model = LogisticRegression(max_iter=10000)
     model.fit(X_train, y_train)
+    
+    # Initialize SHAP explainer
+    explainer = shap.Explainer(model.predict_proba, X_train)
+    baseline_shap = explainer(X_train)
+    
+    logger.info("Initial model trained")
     return model
 
 def train_improved_model(X_train, y_train):
@@ -68,18 +75,9 @@ def main():
     # Setup
     X_train, X_val, X_test, y_train, y_val, y_test = setup_monitoring_example()
     
-    # Initialize alert manager with SMTP config
-    alert_manager = AlertManager(
-        threshold=0.85,
-        smtp_server="smtp.gmail.com",
-        smtp_port=587
-    )
+    # Initialize alert manager
+    alert_manager = AlertManager(threshold=0.85)
 
-    # Verify SMTP credentials are set
-    if not all([os.getenv('SMTP_USER'), os.getenv('SMTP_PASSWORD')]):
-        logger.error("SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD environment variables")
-        sys.exit(1)
-    
     # Configure alert recipient
     try:
         alert_manager.set_recipient_email("korirg543@gmail.com")
@@ -106,7 +104,6 @@ def main():
 
     # Get baseline performance
     baseline_performance = monitor.track(predictions=val_predictions, labels=y_val)
-    logger.info(f"Initial model trained")
     logger.info(f"Baseline performance: {baseline_performance}")
 
     # Initialize drift detector
