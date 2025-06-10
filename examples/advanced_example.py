@@ -53,7 +53,7 @@ def train_initial_model(X_train, y_train):
     baseline_shap = explainer(X_train)
     
     logger.info("Initial model trained")
-    return model
+    return model, explainer, baseline_shap
 
 def train_improved_model(X_train, y_train):
     """Train improved model version with different parameters."""
@@ -91,7 +91,7 @@ def main():
     logger.info("Training initial model...")
 
     # Train model and get predictions
-    initial_model = train_initial_model(X_train, y_train)
+    initial_model, explainer, baseline_shap = train_initial_model(X_train, y_train)
     val_predictions = initial_model.predict(X_val)
     test_predictions = initial_model.predict(X_test)
 
@@ -121,21 +121,47 @@ def main():
         ("Severe Drift", simulate_data_drift(X_test, 0.8))
     ]
     
-    for scenario_name, scenario_data in scenarios:
+    for scenario_name, X_scenario in scenarios:
         logger.info(f"\nRunning scenario: {scenario_name}")
         
         # Performance monitoring
-        current_performance = monitor.track(predictions=initial_model.predict(scenario_data), labels=y_test)
+        current_performance = monitor.track(predictions=initial_model.predict(X_scenario), labels=y_test)
         
         # Get numeric values before comparison
         baseline_acc = baseline_performance['accuracy']['value']
         current_acc = current_performance['accuracy']['value']
         performance_drop = baseline_acc - current_acc
         
-        # Drift detection
-        drift_report = drift_detector.detect(scenario_data)
+        # Detect drift
+        drift_reports = drift_detector.detect(X_scenario)
         
-        # Prepare detailed report
+        # Calculate SHAP values for drifted features
+        current_shap = explainer(X_scenario)
+        
+        # Compare with baseline
+        important_features = []
+        for report in drift_reports:
+            if report.score > alert_manager.threshold:
+                feature_idx = X_train.columns.get_loc(report.features[0])
+                importance = np.abs(current_shap.values[:,feature_idx]).mean() - \
+                             np.abs(baseline_shap.values[:,feature_idx]).mean()
+                important_features.append({
+                    'feature': report.features[0], 
+                    'drift_score': report.score,
+                    'importance_change': importance
+                })
+                
+                # Enhance alert message with SHAP info
+                alert_msg = f"""Drift detected in features {report.features} 
+                Method: {report.method}
+                Score: {report.score:.3f}
+                Importance Change: {importance:.3f}
+                """
+                alert_manager.send_alert(alert_msg)
+        
+        logger.info(f"Important drifted features: {important_features}")
+        
+        # Process drift reports with correct attributes
         message = f"""
         Scenario Analysis: {scenario_name}
         
@@ -152,8 +178,7 @@ def main():
         Drift Details:
         """
         
-        # Process drift reports with correct attributes
-        for report in drift_report:
+        for report in drift_reports:
             # Get report details
             method = report.method
             score = report.score
@@ -167,7 +192,7 @@ def main():
                 alert_message = f"Drift detected in features {features} (method: {method}, score: {score:.3f})"
                 alert_manager.check_and_alert(drift_score=score, message=alert_message)
 
-        max_drift_score = max(report.score for report in drift_report)
+        max_drift_score = max(report.score for report in drift_reports)
         
         # Alert logic
         alert_sent = alert_manager.check_and_alert(
@@ -198,7 +223,7 @@ def main():
                 reference_predictions=improved_model.predict(X_val),
                 reference_labels=y_val
             )
-            new_performance = monitor.track(predictions=improved_model.predict(scenario_data), labels=y_test)
+            new_performance = monitor.track(predictions=improved_model.predict(X_scenario), labels=y_test)
             
             # Get numeric values before comparison
             new_acc = new_performance['accuracy']['value']
