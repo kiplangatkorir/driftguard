@@ -110,6 +110,7 @@ def main():
     # Initialize drift detector
     drift_config = DriftConfig()
     drift_detector = DriftDetector(config=drift_config)
+    drift_detector.attach_model(initial_model)  # Attach model before initialization
     drift_detector.initialize(reference_data=X_train)
     
     # Phase 2: Production Monitoring
