@@ -4,9 +4,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from driftguard.drift_detector import DriftDetector
-from driftguard.model_monitor import ModelMonitor
+from driftguard.core.monitor import ModelMonitor
 from driftguard.alert_manager import AlertManager
+from driftguard.core.drift import DriftDetector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_iris
@@ -67,9 +67,16 @@ def main():
     logger.info("Training model...")
     model = train_model(X_train, y_train)
     
+    # Initialize drift detector
+    drift_detector = DriftDetector()
+    drift_detector.initialize(reference_data=X_train)
+    
     # Initialize monitoring components
-    monitor = ModelMonitor(model)
-    drift_detector = DriftDetector(reference_data=X_train)
+    monitor = ModelMonitor()
+    monitor.initialize(
+        reference_predictions=model.predict(X_train),
+        reference_labels=y_train
+    )
     alert_manager = AlertManager(threshold=0.5)
     
     # Configure recipient email (in a real application, this would be done by the user)
@@ -84,8 +91,11 @@ def main():
     
     # Baseline performance
     logger.info("Calculating baseline performance...")
-    baseline_performance = monitor.track_performance(X_val, y_val)
-    logger.info(f"Baseline performance: {baseline_performance}")
+    baseline_metrics = monitor.track(
+        predictions=model.predict(X_val),
+        labels=y_val
+    )
+    logger.info(f"Baseline performance: {baseline_metrics}")
     
     # Simulate production monitoring
     logger.info("Starting production monitoring simulation...")
@@ -101,49 +111,60 @@ def main():
         logger.info(f"\nRunning scenario: {scenario_name}")
         
         # Performance monitoring
-        current_performance = monitor.track_performance(scenario_data, y_prod)
+        current_metrics = monitor.track(
+            predictions=model.predict(scenario_data),
+            labels=y_prod
+        )
         
-        # Drift detection
-        drift_report = drift_detector.detect_drift(scenario_data)
+        # Detect drift
+        drift_reports = drift_detector.detect(scenario_data)
         
         # Process drift results and send alerts if needed
-        max_drift_score = max(
-            report["drift_score"] 
-            for report in drift_report.values()
-        )
+        max_drift_score = max(report.score for report in drift_reports)
         
         # Prepare detailed message
         message = f"""
-        Scenario: {scenario_name}
+        Drift Monitoring Alert
+        
+        Max Drift Score: {max_drift_score:.3f}
         
         Performance Metrics:
-        - Current Accuracy: {current_performance['accuracy']:.3f}
-        - Baseline Accuracy: {baseline_performance['accuracy']:.3f}
-        - Performance Drop: {(baseline_performance['accuracy'] - current_performance['accuracy']):.3f}
+        """
         
-        Drift Analysis:
-        - Maximum Drift Score: {max_drift_score:.3f}
-        - Threshold: {alert_manager.threshold}
+        for metric, value in current_metrics.items():
+            message += f"- {metric}: {value['value']:.3f}"
+            if value['degraded']:
+                message += " (Degraded)"
+            message += "\n"
+        
+        message += """
         
         Feature-level Drift:
         """
         
-        for feature, report in drift_report.items():
-            message += f"\n- {feature}:"
-            message += f"\n  Drift Score: {report['drift_score']:.3f}"
-            message += f"\n  P-value: {report['p_value']:.3f}"
-            
-            # Send individual feature alerts if needed
-            if report["drift_score"] > alert_manager.threshold:
-                feature_message = (
-                    f"High drift detected in feature '{feature}'!\n"
-                    f"Drift Score: {report['drift_score']:.3f}\n"
-                    f"P-value: {report['p_value']:.3f}"
-                )
-                alert_manager.check_and_alert(
-                    drift_score=report["drift_score"],
-                    message=feature_message
-                )
+        for report in drift_reports:
+            message += f"\n- {report.features[0]}:"
+            message += f"\n  Method: {report.method}"
+            message += f"\n  Score: {report.score:.3f}"
+            message += f"\n  Threshold: {report.threshold:.3f}"
+            message += f"\n  Has Drift: {'Yes' if report.has_drift else 'No'}"
+        
+        # Print results to console
+        print(f"\nPerformance Metrics:")
+        for metric, value in current_metrics.items():
+            print(f"- {metric}: {value['value']:.3f}", end="")
+            if value['degraded']:
+                print(" (Degraded)")
+            else:
+                print()
+        
+        print("\nFeature-level drift details:")
+        for report in drift_reports:
+            print(f"{report.features[0]}:")
+            print(f"  - Method: {report.method}")
+            print(f"  - Score: {report.score:.3f}")
+            print(f"  - Threshold: {report.threshold:.3f}")
+            print(f"  - Has Drift: {'Yes' if report.has_drift else 'No'}")
         
         # Send overall alert if max drift is high
         if max_drift_score > alert_manager.threshold:
@@ -154,18 +175,6 @@ def main():
             )
         else:
             logger.info(f"No significant drift detected in scenario: {scenario_name}")
-        
-        # Print monitoring statistics
-        print(f"\nScenario: {scenario_name}")
-        print(f"Performance: {current_performance}")
-        print(f"Max Drift Score: {max_drift_score:.3f}")
-        
-        # Print detailed drift results
-        print("\nFeature-level drift details:")
-        for feature, report in drift_report.items():
-            print(f"{feature}:")
-            print(f"  - Drift Score: {report['drift_score']:.3f}")
-            print(f"  - P-value: {report['p_value']:.3f}")
     
     # Print final alert statistics
     stats = alert_manager.get_alert_statistics()

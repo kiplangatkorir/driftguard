@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.spatial.distance import wasserstein_distance
+from scipy.stats import wasserstein_distance
 from scipy.special import rel_entr
 from collections import defaultdict
 import logging
