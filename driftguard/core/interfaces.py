@@ -25,12 +25,14 @@ class DriftReport:
         score: float,
         threshold: float,
         features: List[str],
+        importance_change: Optional[float] = None,
         timestamp: Optional[datetime] = None
     ):
         self.method = method
         self.score = score
         self.threshold = threshold
         self.features = features
+        self.importance_change = importance_change
         self.timestamp = timestamp or datetime.now()
         self.has_drift = score > threshold
 
