@@ -68,8 +68,17 @@ def main():
     # Setup
     X_train, X_val, X_test, y_train, y_val, y_test = setup_monitoring_example()
     
-    # Initialize monitoring components
-    alert_manager = AlertManager(threshold=0.85)  # More conservative threshold
+    # Initialize alert manager with SMTP config
+    alert_manager = AlertManager(
+        threshold=0.85,
+        smtp_server="smtp.gmail.com",
+        smtp_port=587
+    )
+
+    # Verify SMTP credentials are set
+    if not all([os.getenv('SMTP_USER'), os.getenv('SMTP_PASSWORD')]):
+        logger.error("SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD environment variables")
+        sys.exit(1)
     
     # Configure alert recipient
     try:
