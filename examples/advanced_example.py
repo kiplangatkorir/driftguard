@@ -157,7 +157,7 @@ def main():
                 Score: {report.score:.3f}
                 Importance Change: {importance:.3f}
                 """
-                alert_manager.send_alert(alert_msg)
+                alert_manager.check_and_alert(drift_score=report.score, message=alert_msg)
         
         logger.info(f"Important drifted features: {important_features}")
         
