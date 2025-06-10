@@ -14,6 +14,7 @@ from sklearn.datasets import load_wine
 import logging
 from dotenv import load_dotenv
 from driftguard.core.config import DriftConfig
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -124,16 +125,26 @@ def main():
     for scenario_name, X_scenario in scenarios:
         logger.info(f"\nRunning scenario: {scenario_name}")
         
-        # Performance monitoring
+        # Time performance monitoring
+        perf_start = time.time()
         current_performance = monitor.track(predictions=initial_model.predict(X_scenario), labels=y_test)
+        perf_time = time.time() - perf_start
+        
+        # Time drift detection
+        drift_start = time.time()
+        drift_reports = drift_detector.detect(X_scenario, parallel=True)
+        drift_time = time.time() - drift_start
+        
+        logger.info(f"Performance monitoring time: {perf_time:.2f}s")
+        logger.info(f"Parallel drift detection time: {drift_time:.2f}s")
         
         # Get numeric values before comparison
         baseline_acc = baseline_performance['accuracy']['value']
         current_acc = current_performance['accuracy']['value']
         performance_drop = baseline_acc - current_acc
         
-        # Detect drift
-        drift_reports = drift_detector.detect(X_scenario)
+        # Detect drift with parallel processing
+        # drift_reports = drift_detector.detect(X_scenario, parallel=True)
         
         # Calculate SHAP values for drifted features
         current_shap = explainer(X_scenario)

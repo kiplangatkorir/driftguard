@@ -4,6 +4,7 @@ Core interfaces and data models for DriftGuard.
 from typing import Dict, List, Optional, Protocol
 from datetime import datetime
 import pandas as pd
+from abc import ABC, abstractmethod
 
 class ValidationResult:
     """Result of data validation"""
@@ -55,6 +56,18 @@ class IDriftDetector(Protocol):
     def detect(self, data: pd.DataFrame) -> List[DriftReport]:
         """Detect drift in new data"""
         ...
+
+class IDriftDetectorParallel(IDriftDetector, ABC):
+    """Interface for parallel drift detection"""
+    @abstractmethod
+    def detect(self, data: pd.DataFrame, parallel: bool = False) -> List[DriftReport]:
+        """Detect drift in new data
+        
+        Args:
+            data: New data to analyze
+            parallel: Whether to use parallel processing
+        """
+        pass
 
 class IModelMonitor(Protocol):
     """Interface for model monitoring"""
