@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 from driftguard.core.drift import DriftDetector
 from driftguard.core.monitor import ModelMonitor
-from driftguard.alert_manager import AlertManager
+from driftguard.core.alert_manager import AlertManager
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_wine
@@ -69,17 +69,15 @@ def main():
     X_train, X_val, X_test, y_train, y_val, y_test = setup_monitoring_example()
     
     # Initialize monitoring components
-    alert_manager = AlertManager(threshold=0.6)
+    alert_manager = AlertManager(threshold=0.85)  # More conservative threshold
     
     # Configure alert recipient
     try:
-        alert_manager.set_recipient_email(
-            "korirg543@gmail.com",
-            "Machine Learning Engineer"
-        )
+        alert_manager.set_recipient_email("korirg543@gmail.com")
+        logger.info("Recipient configuration updated: korirg543@gmail.com")
     except ValueError as e:
-        logger.error(f"Failed to set recipient email: {e}")
-        return
+        logger.error(f"Invalid email configuration: {str(e)}")
+        sys.exit(1)
     
     # Phase 1: Initial Model Deployment
     logger.info("\nPhase 1: Initial Model Deployment")
@@ -166,12 +164,12 @@ def main():
         max_drift_score = max(report.score for report in drift_report)
         
         # Alert logic
-        if max_drift_score > alert_manager.threshold:
-            logger.warning(f"High drift detected in scenario: {scenario_name}")
-            alert_manager.check_and_alert(
-                drift_score=max_drift_score,
-                message=message
-            )
+        alert_sent = alert_manager.check_and_alert(
+            drift_score=max_drift_score,
+            message=f"Drift detected in scenario {scenario_name} (score: {max_drift_score:.3f})"
+        )
+        if alert_sent:
+            logger.info(f"New alert triggered for {scenario_name}")
         
         # Print current scenario results
         print(f"\nScenario: {scenario_name}")
