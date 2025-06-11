@@ -276,3 +276,35 @@ class AlertManager:
             "last_alert_time": self.last_alert_time,
             "alert_count_today": self.alert_count
         }
+
+    def send_report_email(self, subject: str, report_path: str, body: str = ""):
+        """
+        Send a PDF report via email
+        
+        Args:
+            subject: Email subject
+            report_path: Path to PDF file
+            body: Email body content
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.application import MIMEApplication
+        
+        msg = MIMEMultipart()
+        msg['From'] = self.sender_email
+        msg['To'] = self.recipient_config['email']
+        msg['Subject'] = subject
+        
+        if body:
+            msg.attach(MIMEText(body, 'plain'))
+        
+        with open(report_path, 'rb') as f:
+            part = MIMEApplication(f.read(), Name=report_path)
+        part['Content-Disposition'] = f'attachment; filename="{report_path}"'
+        msg.attach(part)
+        
+        with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            server.starttls()
+            server.login(self.sender_email, self.sender_password)
+            server.send_message(msg)
