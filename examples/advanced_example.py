@@ -307,16 +307,18 @@ def main():
             report_file = plot_drift_summary(important_features, scenario_name)
             print(f"\nPDF report saved to: {report_file}")
             
-            # Email the report
+            # Email the enhanced report
             try:
                 alert_manager.send_report_email(
                     subject=f"DriftGuard Report - {scenario_name}",
                     report_path=report_file,
-                    body=f"Attached is the drift report for scenario: {scenario_name}"
+                    scenario_name=scenario_name,
+                    performance_metrics=current_performance,
+                    top_features=sorted(important_features, key=lambda x: x['drift_score'], reverse=True)
                 )
-                logger.info(f"Report emailed successfully to {alert_manager.recipient_config['email']}")
+                logger.info(f"Enhanced report emailed to {alert_manager.recipient_config['email']}")
             except Exception as e:
-                logger.error(f"Failed to email report: {str(e)}")
+                logger.error(f"Failed to email enhanced report: {str(e)}")
             
             # Show top features in console
             top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:5]

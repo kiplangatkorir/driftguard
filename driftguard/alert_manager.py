@@ -277,27 +277,45 @@ class AlertManager:
             "alert_count_today": self.alert_count
         }
 
-    def send_report_email(self, subject: str, report_path: str, body: str = ""):
+    def send_report_email(self, subject: str, report_path: str, scenario_name: str, performance_metrics: dict, top_features: list):
         """
-        Send a PDF report via email
+        Send enhanced PDF report via email with key metrics in body
         
         Args:
             subject: Email subject
             report_path: Path to PDF file
-            body: Email body content
+            scenario_name: Name of the monitoring scenario
+            performance_metrics: Dictionary of performance metrics
+            top_features: List of top drifted features
         """
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
         from email.mime.application import MIMEApplication
         
+        # Create email body with metrics
+        body = f"""DriftGuard Monitoring Report
+        
+Scenario: {scenario_name}
+        
+Performance Metrics:
+"""
+        
+        for metric, values in performance_metrics.items():
+            body += f"- {metric}: {values['value']:.3f} (Reference: {values['reference']:.3f})\n"
+        
+        body += "\nTop Drifted Features:\n"
+        for i, feature in enumerate(top_features[:5], 1):
+            body += f"{i}. {feature['feature']} (Score: {feature['drift_score']:.3f}, Δ Importance: {feature['importance_change']:.3f})\n"
+        
+        body += "\nSee attached PDF for full analysis."
+        
         msg = MIMEMultipart()
         msg['From'] = self.sender_email
         msg['To'] = self.recipient_config['email']
         msg['Subject'] = subject
         
-        if body:
-            msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(body, 'plain'))
         
         with open(report_path, 'rb') as f:
             part = MIMEApplication(f.read(), Name=report_path)
