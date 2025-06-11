@@ -2,7 +2,7 @@
 # **Drift Guard** 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
-**Version:** 0.1.4
+**Version:** 0.1.5
 
 **DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.  
 
@@ -19,6 +19,32 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 - **Performance Tracking**: Keeps track of performance metrics, so you know when your model is underperforming.  
 - **Alert System**: Get email alerts whenever drift is detected.  
 - **Easy to Integrate**: No complicated setup – just plug it into your existing machine learning pipeline.  
+- **Automated Reporting**: Automatic generation of professional PDF reports
+- **Visualization**: Visual representation of feature drift severity
+- **Monitoring Enhancements**: Configurable retraining triggers, parallel processing, and feature importance tracking
+- **Alerting Improvements**: Rate limiting, detailed alerts, and PDF attachments
+
+## New in v0.1.5
+
+### Automated Reporting
+- **PDF Report Generation**: Automatic generation of professional PDF reports
+- **Email Integration**: Reports automatically emailed after monitoring runs
+- **Enhanced Content**: Includes performance metrics and top drifted features
+
+### Visualization
+- **Drift Score Charts**: Visual representation of feature drift severity
+- **Importance Change Tracking**: Shows how feature importance evolves
+- **Printable Format**: Clean, professional layout for sharing
+
+### Monitoring Enhancements
+- **Performance Thresholds**: Configurable retraining triggers
+- **Parallel Processing**: Faster drift detection with ThreadPoolExecutor
+- **Feature Importance**: SHAP-based importance tracking
+
+### Alerting Improvements
+- **Rate Limiting**: Prevent alert flooding
+- **Detailed Alerts**: Include drift scores and importance changes
+- **PDF Attachments**: Comprehensive reports with each alert
 
 ## Install    
 To install DriftGuard, simply run:
@@ -116,6 +142,19 @@ async def predict(data: dict):
 ```
 This is just one way you can use DriftGuard. It fits easily into your workflow, whether you're working with batch processing, real-time APIs, or other machine learning pipelines.
 
+## Example Usage of New Features
+
+```python
+# Example usage of new features
+monitor = ModelMonitor(config=ModelMonitorConfig(
+    retrain_threshold=0.15,  # Relative performance drop to trigger retraining
+    max_retrains=3,          # Maximum allowed retrains
+    metrics=['accuracy']     # Metrics to monitor
+))
+```
+
+For full documentation see [DriftGuard Docs](https://driftguard.readthedocs.io)
+
 ## Contributing  
 Want to contribute? Awesome! We have alot of issues. Here’s how you can help:
 1. Fork the repository.
@@ -146,5 +185,3 @@ Have any questions? Want to give feedback? Reach out to me at:
 
 - **Email**: [korir@GraphFusion.onmicrosoft.com](mailto:korirkiplangat22@gmail.com)  
 - **GitHub**: [kiplangatkorir](https://github.com/kiplangatkorir)  
-
-

@@ -19,6 +19,20 @@ logger = logging.getLogger('AlertManager')
 
 
 class AlertManager:
+    """
+    Manages alerting and reporting for drift detection.
+    
+    Features:
+    - Email alerts for drift detection events
+    - PDF report generation and distribution
+    - Rate limiting to prevent alert flooding
+    - Support for multiple notification channels
+    
+    New in v0.1.5:
+    - Automated PDF report generation
+    - Enhanced email reports with performance metrics
+    - Top drifted features summary in emails
+    """
     def __init__(
         self,
         threshold: float = 0.5,
@@ -277,16 +291,33 @@ class AlertManager:
             "alert_count_today": self.alert_count
         }
 
-    def send_report_email(self, subject: str, report_path: str, scenario_name: str, performance_metrics: dict, top_features: list):
+    def send_report_email(self, subject: str, report_path: str, scenario_name: str, 
+                         performance_metrics: dict, top_features: list):
         """
-        Send enhanced PDF report via email with key metrics in body
+        Send a comprehensive drift report via email with PDF attachment.
         
         Args:
-            subject: Email subject
-            report_path: Path to PDF file
-            scenario_name: Name of the monitoring scenario
-            performance_metrics: Dictionary of performance metrics
-            top_features: List of top drifted features
+            subject: Email subject line
+            report_path: Path to generated PDF report
+            scenario_name: Name/description of monitoring scenario
+            performance_metrics: {
+                'metric_name': {
+                    'value': current value,
+                    'reference': baseline value
+                }
+            }
+            top_features: [{
+                'feature': feature name,
+                'drift_score': calculated score,
+                'importance_change': delta from baseline
+            }]
+        
+        Returns:
+            None (sends email via configured SMTP)
+        
+        Raises:
+            SMTPException: If email delivery fails
+            FileNotFoundError: If report PDF is missing
         """
         import smtplib
         from email.mime.text import MIMEText
