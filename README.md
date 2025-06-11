@@ -51,25 +51,29 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 ### Statistical Methods
 1. **Kolmogorov-Smirnov (KS) Test**  
    $D_{n,m} = \sup_x |F_{1,n}(x) - F_{2,m}(x)|$  
-   Where $F_{1,n}$ and $F_{2,m}$ are empirical distribution functions
+   *Finds the maximum difference between two distributions - great for detecting sharp changes in numerical features*
 
 2. **Population Stability Index (PSI)**  
    $PSI = \sum (Actual\% - Expected\%) \cdot \ln\left(\frac{Actual\%}{Expected\%}\right)$
+   *Measures how much a feature's distribution has shifted by comparing percentage bins between current and reference data*
 
 3. **Jensen-Shannon Divergence (JSD)**  
    $JSD(P||Q) = \frac{1}{2}D(P||M) + \frac{1}{2}D(Q||M)$  
-   Where $M = \frac{1}{2}(P+Q)$ and $D$ is KL-divergence
+   *Symmetric version of KL-divergence that quantifies how different two distributions are (0 = identical, 1 = completely different)*
 
 4. **Wasserstein Distance**  
    $W_p(P,Q) = \left(\inf_{\gamma \in \Gamma(P,Q)} \int d(x,y)^p d\gamma(x,y)\right)^{1/p}$
+   *Also called "Earth Mover's Distance" - measures the minimum work needed to transform one distribution into another*
 
 ### Performance Monitoring
 - **Relative Performance Drop**  
   $\Delta = \frac{Perf_{ref} - Perf_{current}}{Perf_{ref}}$
+  *Calculates percentage decrease in model performance (accuracy/F1/etc.) compared to reference*
 
 ### Feature Importance
 - **SHAP Value Changes**  
   $\Delta\phi_i = |\phi_{i,current} - \phi_{i,ref}|$
+  *Tracks how much each feature's contribution to predictions has changed over time*
 
 These metrics are computed in parallel for each feature and aggregated to detect overall drift.
 
