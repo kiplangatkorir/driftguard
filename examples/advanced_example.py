@@ -17,8 +17,6 @@ from dotenv import load_dotenv
 import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from plotly.graph_objects import go
-from plotly.subplots import make_subplots
 
 # Configure logging
 logging.basicConfig(
