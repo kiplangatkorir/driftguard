@@ -4,7 +4,7 @@ Model monitoring module for DriftGuard.
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
-from sklearn import metrics
+from sklearn import metrics, clone
 from datetime import datetime
 import logging
 
@@ -22,6 +22,8 @@ class ModelMonitor(IModelMonitor):
         self.reference_metrics = {}
         self.reference_predictions = None
         self.reference_labels = None
+        self.model = None  # Track the current model
+        self.retrain_count = 0
         self._initialized = False
     
     def initialize(
@@ -48,6 +50,33 @@ class ModelMonitor(IModelMonitor):
         )
         
         self._initialized = True
+    
+    def attach_model(self, model):
+        """Attach a model for potential retraining"""
+        self.model = model
+        
+    def should_retrain(self, current_performance: dict) -> bool:
+        """Determine if retraining is needed based on performance drop"""
+        if not self.model:
+            return False
+            
+        baseline_acc = self.reference_metrics['accuracy']
+        current_acc = current_performance['accuracy']['value']
+        return (baseline_acc - current_acc) > self.config.retrain_threshold
+        
+    def retrain_model(self, X_new: pd.DataFrame, y_new: pd.Series):
+        """Retrain the attached model with combined data"""
+        if not hasattr(self.model, 'fit'):
+            raise ValueError("Attached model does not support retraining")
+            
+        logger.info(f"Retraining model (attempt {self.retrain_count + 1})")
+        
+        # Clone and retrain model
+        new_model = clone(self.model)
+        new_model.fit(X_new, y_new)
+        
+        self.retrain_count += 1
+        return new_model
     
     def track(
         self,
@@ -78,6 +107,16 @@ class ModelMonitor(IModelMonitor):
             }
             for metric, value in current_metrics.items()
         }
+        
+        # Check if retraining is needed
+        if self.should_retrain(metrics_with_status):
+            # Retrain the model
+            new_model = self.retrain_model(
+                pd.concat([self.reference_labels, labels]),
+                pd.concat([self.reference_predictions, predictions])
+            )
+            # Update the model
+            self.model = new_model
         
         return metrics_with_status
     

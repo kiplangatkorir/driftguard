@@ -8,12 +8,12 @@ import shap
 from driftguard.core.drift import DriftDetector
 from driftguard.core.monitor import ModelMonitor
 from driftguard.core.alert_manager import AlertManager
+from driftguard.core.config import ModelMonitorConfig
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_wine
 import logging
 from dotenv import load_dotenv
-from driftguard.core.config import DriftConfig
 import time
 
 # Configure logging
@@ -96,12 +96,18 @@ def main():
     val_predictions = initial_model.predict(X_val)
     test_predictions = initial_model.predict(X_test)
 
-    # Initialize ModelMonitor
-    monitor = ModelMonitor()
-    monitor.initialize(
-        reference_predictions=val_predictions,
-        reference_labels=y_val
+    # Initialize model monitor
+    monitor_config = ModelMonitorConfig(
+        metrics=['accuracy', 'precision', 'recall', 'f1'],
+        retrain_threshold=0.15,
+        max_retrains=3
     )
+    monitor = ModelMonitor(config=monitor_config)
+    monitor.initialize(
+        reference_predictions=initial_model.predict(X_train),
+        reference_labels=y_train
+    )
+    monitor.attach_model(initial_model)  # Separate model attachment
 
     # Get baseline performance
     baseline_performance = monitor.track(predictions=val_predictions, labels=y_val)
@@ -219,47 +225,24 @@ def main():
         print(f"Performance: {current_performance}")
         print(f"Max Drift Score: {max_drift_score:.3f}")
         
-        # If severe performance drop, trigger model retraining
+        # If significant performance drop, trigger model retraining
         if performance_drop > 0.1:
-            logger.warning("Significant performance drop detected. Initiating model retraining...")
+            logger.warning("Significant performance drop detected")
             
-            # Phase 3: Model Update
-            logger.info("\nPhase 3: Model Update")
-            
-            # Train improved model
-            improved_model = train_improved_model(X_train, y_train)
-            
-            # Evaluate new model
-            monitor = ModelMonitor()
-            monitor.initialize(
-                reference_predictions=improved_model.predict(X_val),
-                reference_labels=y_val
-            )
-            new_performance = monitor.track(predictions=improved_model.predict(X_scenario), labels=y_test)
-            
-            # Get numeric values before comparison
-            new_acc = new_performance['accuracy']['value']
-            current_acc = current_performance['accuracy']['value']
-            performance_improvement = new_acc - current_acc
-            
-            update_message = f"""
-            Model Update Report:
-            - Previous Accuracy: {current_performance['accuracy']['value']:.3f}
-            - New Accuracy: {new_performance['accuracy']['value']:.3f}
-            - Improvement: {performance_improvement:.3f}
-            """
-            
-            logger.info(update_message)
-            
-            # Alert about model update
-            if performance_improvement > 0:
-                alert_manager.send_alert(
-                    f"Model updated successfully. Performance improved by {performance_improvement:.3f}"
+            # Check if automatic retraining should trigger
+            if monitor.should_retrain(current_performance):
+                logger.info("Initiating automated model retraining...")
+                improved_model = monitor.retrain_model(
+                    X_new=pd.concat([X_train, X_scenario]),
+                    y_new=pd.concat([y_train, y_test])
                 )
-            else:
-                alert_manager.send_alert(
-                    "Model update did not improve performance. Further investigation needed."
-                )
+                
+                # Update all components with new model
+                drift_detector.attach_model(improved_model)
+                drift_detector.initialize(reference_data=X_train)
+                explainer = shap.Explainer(improved_model.predict_proba, X_train)
+                
+                logger.info("Retraining complete. Monitoring with updated model.")
     
     # Print final monitoring statistics
     stats = alert_manager.get_alert_statistics()

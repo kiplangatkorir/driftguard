@@ -1,7 +1,7 @@
 """
 Core interfaces and data models for DriftGuard.
 """
-from typing import Dict, List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol, Any
 from datetime import datetime
 import pandas as pd
 from abc import ABC, abstractmethod
@@ -74,17 +74,22 @@ class IModelMonitor(Protocol):
     def initialize(
         self,
         reference_predictions: pd.Series,
-        reference_labels: pd.Series
+        reference_labels: pd.Series,
+        model: Optional[Any] = None
     ) -> None:
         """Initialize monitor with reference data"""
         ...
-    
-    def track(
-        self,
-        predictions: pd.Series,
-        labels: pd.Series
-    ) -> Dict[str, float]:
-        """Track model performance"""
+        
+    def attach_model(self, model: Any) -> None:
+        """Attach a model for potential retraining"""
+        ...
+        
+    def should_retrain(self, current_performance: dict) -> bool:
+        """Determine if retraining is needed"""
+        ...
+        
+    def retrain_model(self, X_new: pd.DataFrame, y_new: pd.Series) -> Any:
+        """Retrain attached model with new data"""
         ...
 
 class IStateManager(Protocol):

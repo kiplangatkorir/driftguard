@@ -94,6 +94,32 @@ class DriftConfig(BaseModel):
             raise ValueError("Window size must be at least 100")
         return v
 
+class ModelMonitorConfig(BaseModel):
+    """Model monitoring configuration"""
+    metrics: Optional[List[str]] = None
+    thresholds: Dict[str, float] = {
+        "accuracy": 0.7,
+        "f1": 0.6,
+        "precision": 0.6,
+        "recall": 0.6
+    }
+    threshold_type: str = "absolute"  # or "relative"
+    retrain_threshold: float = 0.1
+    max_retrains: int = 3
+    
+    @validator('metrics')
+    def validate_metrics(cls, v):
+        if v is None:
+            return ["accuracy", "precision", "recall", "f1"]
+        valid = ["accuracy", "f1", "precision", "recall", "roc_auc"]
+        for metric in v:
+            if metric not in valid:
+                raise ValueError(
+                    f"Invalid metric '{metric}'. "
+                    f"Must be one of: {', '.join(valid)}"
+                )
+        return v
+
 class MonitorConfig(BaseModel):
     """Model monitoring configuration"""
     metrics: List[str] = ["accuracy", "f1", "precision", "recall"]
@@ -105,6 +131,7 @@ class MonitorConfig(BaseModel):
         "recall": 0.7
     }
     window_size: int = 1000
+    model_monitor: ModelMonitorConfig = ModelMonitorConfig()
     
     @validator('metrics')
     def validate_metrics(cls, v):
