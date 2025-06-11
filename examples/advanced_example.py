@@ -16,7 +16,8 @@ import logging
 from dotenv import load_dotenv
 import time
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
+from matplotlib.backends.backend_pdf import PdfPages
+from plotly.graph_objects import go
 from plotly.subplots import make_subplots
 
 # Configure logging
@@ -72,42 +73,65 @@ def simulate_data_drift(X, magnitude=0.5):
     X_drifted = X_drifted + noise
     return X_drifted
 
-def plot_drift_summary(features):
-    """Create interactive drift summary visualization"""
-    fig = make_subplots(rows=1, cols=2, subplot_titles=('Drift Scores', 'Importance Changes'))
+def plot_drift_summary(features, scenario_name):
+    """Create PDF drift summary report"""
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+    from datetime import datetime
     
-    # Sort features by drift score
-    features = sorted(features, key=lambda x: x['drift_score'], reverse=True)
+    # Create timestamped filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"drift_report_{scenario_name}_{timestamp}.pdf"
     
-    # Add drift scores bar chart
-    fig.add_trace(
-        go.Bar(
-            x=[f['feature'] for f in features],
-            y=[f['drift_score'] for f in features],
-            name='Drift Score'
-        ),
-        row=1, col=1
-    )
-    
-    # Add importance changes bar chart
-    fig.add_trace(
-        go.Bar(
-            x=[f['feature'] for f in features],
-            y=[f['importance_change'] for f in features],
-            name='Importance Change'
-        ),
-        row=1, col=2
-    )
-    
-    fig.update_layout(
-        title_text='Feature Drift Analysis',
-        showlegend=False,
-        height=500
-    )
-    
-    # Save to HTML file
-    fig.write_html('drift_report.html')
-    return 'drift_report.html'
+    with PdfPages(filename) as pdf:
+        # Create title page
+        plt.figure(figsize=(8, 11))
+        plt.axis('off')
+        plt.text(0.5, 0.8, f"DriftGuard Report\n{scenario_name}", 
+                 ha='center', va='center', size=20)
+        plt.text(0.5, 0.6, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                 ha='center', va='center', size=12)
+        pdf.savefig()
+        plt.close()
+        
+        # Create drift scores plot
+        plt.figure(figsize=(10, 6))
+        features = sorted(features, key=lambda x: x['drift_score'], reverse=True)
+        plt.bar([f['feature'] for f in features], 
+                [f['drift_score'] for f in features])
+        plt.title('Feature Drift Scores')
+        plt.xticks(rotation=45, ha='right')
+        plt.ylabel('Drift Score')
+        plt.tight_layout()
+        pdf.savefig()
+        plt.close()
+        
+        # Create importance change plot
+        plt.figure(figsize=(10, 6))
+        plt.bar([f['feature'] for f in features], 
+                [f['importance_change'] for f in features])
+        plt.title('Feature Importance Changes')
+        plt.xticks(rotation=45, ha='right')
+        plt.ylabel('Importance Change')
+        plt.tight_layout()
+        pdf.savefig()
+        plt.close()
+        
+        # Create summary table
+        plt.figure(figsize=(10, 6))
+        plt.axis('off')
+        table_data = [[f['feature'], 
+                      f"{f['drift_score']:.3f}", 
+                      f"{f['importance_change']:.3f}"] 
+                     for f in features[:10]]
+        plt.table(cellText=table_data,
+                 colLabels=['Feature', 'Drift Score', 'Importance Δ'],
+                 loc='center')
+        plt.title('Top 10 Drifted Features')
+        pdf.savefig()
+        plt.close()
+        
+    return filename
 
 def main():
     """Main function to run the advanced monitoring example."""
@@ -282,8 +306,8 @@ def main():
         
         # Generate and show visualization
         if important_features:
-            report_file = plot_drift_summary(important_features)
-            print(f"\nVisualization saved to: {report_file}")
+            report_file = plot_drift_summary(important_features, scenario_name)
+            print(f"\nPDF report saved to: {report_file}")
             
             # Show top features in console
             top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:5]
