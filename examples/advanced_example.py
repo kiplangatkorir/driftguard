@@ -288,9 +288,9 @@ def main():
             # Show top features in console
             top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:5]
             print("\nTOP DRIFTED FEATURES:")
-            print(f"{'Feature':<25}{'Drift Score':>15}{'Importance Δ':>15}{'Method':>15}")
+            print(f"{'Feature':<25}{'Drift Score':>15}{'Importance Change':>18}{'Method':>15}")
             for feature in top_drifted:
-                print(f"{feature['feature']:<25}{feature['drift_score']:>15.3f}{feature['importance_change']:>15.3f}{'':>15}")
+                print(f"{feature['feature']:<25}{feature['drift_score']:>15.3f}{feature['importance_change']:>18.3f}{'':>15}")
         
         print(f"\n{'='*50}")
         
