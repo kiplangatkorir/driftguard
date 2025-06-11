@@ -221,9 +221,28 @@ def main():
             logger.info(f"New alert triggered for {scenario_name}")
         
         # Print current scenario results
-        print(f"\nScenario: {scenario_name}")
-        print(f"Performance: {current_performance}")
-        print(f"Max Drift Score: {max_drift_score:.3f}")
+        print(f"\n{'='*50}")
+        print(f"SCENARIO: {scenario_name}")
+        print(f"{'='*50}")
+        
+        # Performance summary
+        print("\nPERFORMANCE:")
+        for metric, values in current_performance.items():
+            print(f"- {metric}: {values['value']:.3f} (Reference: {values['reference']:.3f})")
+        
+        # Drift summary
+        print("\nDRIFT DETECTION:")
+        print(f"- Max drift score: {max_drift_score:.3f}")
+        print(f"- Drifted features: {len(important_features)}")
+        
+        # Top 3 most drifted features
+        if important_features:
+            top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:3]
+            print("\nTOP DRIFTED FEATURES:")
+            for feature in top_drifted:
+                print(f"- {feature['feature']}: Score={feature['drift_score']:.3f}, Importance Δ={feature['importance_change']:.3f}")
+        
+        print(f"\n{'='*50}")
         
         # If significant performance drop, trigger model retraining
         if performance_drop > 0.1:
