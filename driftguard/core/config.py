@@ -3,6 +3,7 @@ Configuration module for DriftGuard.
 """
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import Literal
 
 class EmailConfig(BaseModel):
     """Email configuration settings"""
@@ -120,6 +121,13 @@ class ModelMonitorConfig(BaseModel):
                 )
         return v
 
+class FeatureStoreConfig(BaseModel):
+    """Feature store configuration"""
+    enabled: bool = False
+    type: Literal['feast', 'sagemaker', 'custom'] = 'feast'
+    uri: Optional[str] = None
+    refresh_interval: int = 3600  # Seconds
+
 class MonitorConfig(BaseModel):
     """Model monitoring configuration"""
     metrics: List[str] = ["accuracy", "f1", "precision", "recall"]
@@ -132,6 +140,7 @@ class MonitorConfig(BaseModel):
     }
     window_size: int = 1000
     model_monitor: ModelMonitorConfig = ModelMonitorConfig()
+    feature_store: FeatureStoreConfig = Field(default_factory=FeatureStoreConfig)
     
     @validator('metrics')
     def validate_metrics(cls, v):

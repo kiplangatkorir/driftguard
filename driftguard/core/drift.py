@@ -291,32 +291,20 @@ class DriftDetector(IDriftDetector):
                     importance_change=importance_change
                 )
     
-    def detect(self, data: pd.DataFrame, parallel: bool = False) -> List[DriftReport]:
-        """Detect drift with optional parallel processing"""
-        if not self._initialized:
-            raise RuntimeError("Detector not initialized")
-            
-        if parallel:
-            with ThreadPoolExecutor() as executor:
-                # Process each feature in parallel
-                futures = []
-                for method in self.config.methods:
-                    for col in self.reference_data.columns:
-                        futures.append(
-                            executor.submit(
-                                partial(self._detect_feature, data, col, method)
-                            )
-                        )
-                
-                # Collect results
-                reports = [f.result() for f in futures]
-        else:
-            # Sequential processing
-            reports = []
-            for method in self.config.methods:
-                for col in self.reference_data.columns:
-                    report = self._detect_feature(data, col, method)
-                    if report is not None:
-                        reports.append(report)
-        
+    def _process_batch(self, batch: pd.DataFrame) -> List[DriftReport]:
+        """Process a batch of data"""
+        reports = []
+        for method in self.config.methods:
+            for col in self.reference_data.columns:
+                report = self._detect_feature(batch, col, method)
+                if report is not None:
+                    reports.append(report)
         return reports
+    
+    def detect(self, data: pd.DataFrame, batch_size: int = 1000) -> List[DriftReport]:
+        """Process data in batches to reduce memory usage"""
+        results = []
+        for i in range(0, len(data), batch_size):
+            batch = data.iloc[i:i+batch_size]
+            results.extend(self._process_batch(batch))
+        return results
