@@ -10,8 +10,9 @@ from scipy.special import rel_entr
 from collections import defaultdict
 import logging
 import shap
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
+from tqdm import tqdm
 
 from .interfaces import IDriftDetector, DriftReport
 from .config import DriftConfig
@@ -31,6 +32,25 @@ class DriftDetector(IDriftDetector):
         self._explainer = None
         self._baseline_shap = None
         self.model = None
+        
+        # Initialize caches
+        self._stats_cache = {}
+        self._shap_cache = {}
+        
+    def _cache_key(self, data: pd.DataFrame, col: str, method: str) -> str:
+        """Generate cache key for statistical tests"""
+        return f"{method}_{col}_{hash(frozenset(data[col].values.tobytes()))}"
+        
+    def _cached_stat_test(self, data: pd.DataFrame, col: str, method: str, test_func):
+        """Run statistical test with caching"""
+        key = self._cache_key(data, col, method)
+        
+        if key in self._stats_cache:
+            return self._stats_cache[key]
+            
+        result = test_func(data[col].values, self.reference_data[col].values)
+        self._stats_cache[key] = result
+        return result
     
     def initialize(self, reference_data: pd.DataFrame) -> None:
         """Initialize detector with reference data"""
@@ -65,7 +85,7 @@ class DriftDetector(IDriftDetector):
         # Initialize SHAP explainer if model is available
         if hasattr(self, 'model'):
             self._explainer = shap.Explainer(self.model.predict_proba, reference_data)
-            self._baseline_shap = self._explainer(reference_data)
+            self._baseline_shap = self._calculate_shap_values(self.reference_data)
         
         self._initialized = True
     
@@ -74,7 +94,23 @@ class DriftDetector(IDriftDetector):
         self.model = model
         if self._initialized and self.reference_data is not None:
             self._explainer = shap.Explainer(model.predict_proba, self.reference_data)
-            self._baseline_shap = self._explainer(self.reference_data)
+            self._baseline_shap = self._calculate_shap_values(self.reference_data)
+    
+    def _calculate_shap_values(self, data: pd.DataFrame):
+        """Optimized SHAP calculation with caching"""
+        cache_key = hash(frozenset(data.values.tobytes()))
+        
+        if hasattr(self, '_shap_cache') and cache_key in self._shap_cache:
+            return self._shap_cache[cache_key]
+            
+        if not hasattr(self, '_shap_cache'):
+            self._shap_cache = {}
+            
+        # Use approximate SHAP for faster computation
+        shap_values = self._explainer(data, check_additivity=False)
+        self._shap_cache[cache_key] = shap_values
+        
+        return shap_values
     
     def _detect_feature(self, data: pd.DataFrame, col: str, method: str) -> DriftReport:
         """Detect drift for a single feature"""
@@ -88,14 +124,15 @@ class DriftDetector(IDriftDetector):
             if len(new_values) < 2:
                 return None
             
-            statistic, _ = stats.ks_2samp(ref_values, new_values)
+            statistic, _ = self._cached_stat_test(data, col, method, stats.ks_2samp)
             
             # Calculate importance change if SHAP values available
             importance_change = None
             if hasattr(self, '_explainer') and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
+                shap_values = self._calculate_shap_values(data)
                 importance_change = (
-                    np.abs(self._explainer(data).values[:,col_idx]).mean() - 
+                    np.abs(shap_values.values[:,col_idx]).mean() - 
                     np.abs(self._baseline_shap.values[:,col_idx]).mean()
                 )
                 
@@ -150,8 +187,9 @@ class DriftDetector(IDriftDetector):
             importance_change = None
             if hasattr(self, '_explainer') and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
+                shap_values = self._calculate_shap_values(data)
                 importance_change = (
-                    np.abs(self._explainer(data).values[:,col_idx]).mean() - 
+                    np.abs(shap_values.values[:,col_idx]).mean() - 
                     np.abs(self._baseline_shap.values[:,col_idx]).mean()
                 )
                 
@@ -202,8 +240,9 @@ class DriftDetector(IDriftDetector):
             importance_change = None
             if hasattr(self, '_explainer') and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
+                shap_values = self._calculate_shap_values(data)
                 importance_change = (
-                    np.abs(self._explainer(data).values[:,col_idx]).mean() - 
+                    np.abs(shap_values.values[:,col_idx]).mean() - 
                     np.abs(self._baseline_shap.values[:,col_idx]).mean()
                 )
                 
@@ -237,8 +276,9 @@ class DriftDetector(IDriftDetector):
                 importance_change = None
                 if hasattr(self, '_explainer') and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
+                    shap_values = self._calculate_shap_values(data)
                     importance_change = (
-                        np.abs(self._explainer(data).values[:,col_idx]).mean() - 
+                        np.abs(shap_values.values[:,col_idx]).mean() - 
                         np.abs(self._baseline_shap.values[:,col_idx]).mean()
                     )
                     
@@ -270,16 +310,15 @@ class DriftDetector(IDriftDetector):
             
             # Chi-square test requires at least 5 samples per category
             if min(ref_freq) >= 5 and min(new_freq) >= 5:
-                statistic, p_value = stats.chi2_contingency(
-                    [ref_freq, new_freq]
-                )[:2]
+                statistic, p_value = self._cached_stat_test(data, col, method, stats.chi2_contingency)
                 
                 # Calculate importance change if SHAP values available
                 importance_change = None
                 if hasattr(self, '_explainer') and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
+                    shap_values = self._calculate_shap_values(data)
                     importance_change = (
-                        np.abs(self._explainer(data).values[:,col_idx]).mean() - 
+                        np.abs(shap_values.values[:,col_idx]).mean() - 
                         np.abs(self._baseline_shap.values[:,col_idx]).mean()
                     )
                     
@@ -292,19 +331,33 @@ class DriftDetector(IDriftDetector):
                 )
     
     def _process_batch(self, batch: pd.DataFrame) -> List[DriftReport]:
-        """Process a batch of data"""
+        """Process a batch of data with progress tracking"""
         reports = []
-        for method in self.config.methods:
-            for col in self.reference_data.columns:
-                report = self._detect_feature(batch, col, method)
-                if report is not None:
-                    reports.append(report)
+        total = len(self.config.methods) * len(self.reference_data.columns)
+        
+        with tqdm(total=total, desc="Processing features") as pbar:
+            for method in self.config.methods:
+                for col in self.reference_data.columns:
+                    report = self._detect_feature(batch, col, method)
+                    if report is not None:
+                        reports.append(report)
+                    pbar.update(1)
+        
         return reports
     
     def detect(self, data: pd.DataFrame, batch_size: int = 1000) -> List[DriftReport]:
-        """Process data in batches to reduce memory usage"""
+        """Process data in memory-efficient batches"""
+        if not self._initialized:
+            raise RuntimeError("Detector not initialized")
+            
         results = []
-        for i in range(0, len(data), batch_size):
-            batch = data.iloc[i:i+batch_size]
-            results.extend(self._process_batch(batch))
+        batches = [data.iloc[i:i+batch_size] 
+                  for i in range(0, len(data), batch_size)]
+                  
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._process_batch, batch) 
+                      for batch in batches]
+            for future in as_completed(futures):
+                results.extend(future.result())
+                
         return results
