@@ -46,6 +46,33 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 - **Detailed Alerts**: Include drift scores and importance changes
 - **PDF Attachments**: Comprehensive reports with each alert
 
+## Core Detection Techniques
+
+### Statistical Methods
+1. **Kolmogorov-Smirnov (KS) Test**  
+   $D_{n,m} = \sup_x |F_{1,n}(x) - F_{2,m}(x)|$  
+   Where $F_{1,n}$ and $F_{2,m}$ are empirical distribution functions
+
+2. **Population Stability Index (PSI)**  
+   $PSI = \sum (Actual\% - Expected\%) \cdot \ln\left(\frac{Actual\%}{Expected\%}\right)$
+
+3. **Jensen-Shannon Divergence (JSD)**  
+   $JSD(P||Q) = \frac{1}{2}D(P||M) + \frac{1}{2}D(Q||M)$  
+   Where $M = \frac{1}{2}(P+Q)$ and $D$ is KL-divergence
+
+4. **Wasserstein Distance**  
+   $W_p(P,Q) = \left(\inf_{\gamma \in \Gamma(P,Q)} \int d(x,y)^p d\gamma(x,y)\right)^{1/p}$
+
+### Performance Monitoring
+- **Relative Performance Drop**  
+  $\Delta = \frac{Perf_{ref} - Perf_{current}}{Perf_{ref}}$
+
+### Feature Importance
+- **SHAP Value Changes**  
+  $\Delta\phi_i = |\phi_{i,current} - \phi_{i,ref}|$
+
+These metrics are computed in parallel for each feature and aggregated to detect overall drift.
+
 ## Install    
 To install DriftGuard, simply run:
 
