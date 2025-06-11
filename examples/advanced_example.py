@@ -8,7 +8,7 @@ import shap
 from driftguard.core.drift import DriftDetector
 from driftguard.core.monitor import ModelMonitor
 from driftguard.core.alert_manager import AlertManager
-from driftguard.core.config import ModelMonitorConfig
+from driftguard.core.config import ModelMonitorConfig, DriftConfig
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_wine
