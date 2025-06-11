@@ -15,6 +15,9 @@ from sklearn.datasets import load_wine
 import logging
 from dotenv import load_dotenv
 import time
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Configure logging
 logging.basicConfig(
@@ -68,6 +71,43 @@ def simulate_data_drift(X, magnitude=0.5):
     noise = np.random.normal(0, magnitude, X_drifted.shape)
     X_drifted = X_drifted + noise
     return X_drifted
+
+def plot_drift_summary(features):
+    """Create interactive drift summary visualization"""
+    fig = make_subplots(rows=1, cols=2, subplot_titles=('Drift Scores', 'Importance Changes'))
+    
+    # Sort features by drift score
+    features = sorted(features, key=lambda x: x['drift_score'], reverse=True)
+    
+    # Add drift scores bar chart
+    fig.add_trace(
+        go.Bar(
+            x=[f['feature'] for f in features],
+            y=[f['drift_score'] for f in features],
+            name='Drift Score'
+        ),
+        row=1, col=1
+    )
+    
+    # Add importance changes bar chart
+    fig.add_trace(
+        go.Bar(
+            x=[f['feature'] for f in features],
+            y=[f['importance_change'] for f in features],
+            name='Importance Change'
+        ),
+        row=1, col=2
+    )
+    
+    fig.update_layout(
+        title_text='Feature Drift Analysis',
+        showlegend=False,
+        height=500
+    )
+    
+    # Save to HTML file
+    fig.write_html('drift_report.html')
+    return 'drift_report.html'
 
 def main():
     """Main function to run the advanced monitoring example."""
@@ -225,22 +265,32 @@ def main():
         print(f"SCENARIO: {scenario_name}")
         print(f"{'='*50}")
         
-        # Performance summary
-        print("\nPERFORMANCE:")
+        # Performance metrics table
+        print("\nPERFORMANCE METRICS:")
+        print(f"{'Metric':<15}{'Current':>10}{'Reference':>12}{'Change':>10}{'Status':>10}")
         for metric, values in current_performance.items():
-            print(f"- {metric}: {values['value']:.3f} (Reference: {values['reference']:.3f})")
+            change = values['value'] - values['reference']
+            status = "" if values['degraded'] else ""
+            print(f"{metric:<15}{values['value']:>10.3f}{values['reference']:>12.3f}{change:>+10.3f}{status:>10}")
         
-        # Drift summary
-        print("\nDRIFT DETECTION:")
-        print(f"- Max drift score: {max_drift_score:.3f}")
+        # Drift statistics
+        print("\nDRIFT STATISTICS:")
+        print(f"- Features analyzed: {len(drift_reports)}")
         print(f"- Drifted features: {len(important_features)}")
+        print(f"- Max drift score: {max_drift_score:.3f}")
+        print(f"- Avg drift score: {sum(r.score for r in drift_reports)/len(drift_reports):.3f}")
         
-        # Top 3 most drifted features
+        # Generate and show visualization
         if important_features:
-            top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:3]
+            report_file = plot_drift_summary(important_features)
+            print(f"\nVisualization saved to: {report_file}")
+            
+            # Show top features in console
+            top_drifted = sorted(important_features, key=lambda x: x['drift_score'], reverse=True)[:5]
             print("\nTOP DRIFTED FEATURES:")
+            print(f"{'Feature':<25}{'Drift Score':>15}{'Importance Δ':>15}{'Method':>15}")
             for feature in top_drifted:
-                print(f"- {feature['feature']}: Score={feature['drift_score']:.3f}, Importance Δ={feature['importance_change']:.3f}")
+                print(f"{feature['feature']:<25}{feature['drift_score']:>15.3f}{feature['importance_change']:>15.3f}{'':>15}")
         
         print(f"\n{'='*50}")
         
