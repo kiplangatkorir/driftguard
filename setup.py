@@ -17,7 +17,7 @@ setup(
     ],
     python_requires='>=3.6',  
     install_requires=[
-        'pydantic>=1.9.0',  # Minimum version with Literal support
+        'pydantic>=4.12.2',  
         'numpy>=1.24.0',
         'pandas>=2.0.0',
         'scipy>=1.10.0',
