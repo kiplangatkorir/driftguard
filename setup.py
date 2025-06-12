@@ -16,13 +16,14 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.6',  
-    install_requires=[  
-        "numpy",
-        "scikit-learn",
-        "pandas",
-        "scipy",
-        "python-dotenv",  
-        "matplotlib",  
+    install_requires=[
+        'pydantic>=1.9.0',  # Minimum version with Literal support
+        'numpy>=1.24.0',
+        'pandas>=2.0.0',
+        'scipy>=1.10.0',
+        'scikit-learn>=1.3.0',
+        'shap>=0.44.0',
+        'tqdm>=4.66.0'
     ],
     entry_points={  
         'console_scripts': [
