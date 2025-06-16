@@ -1,20 +1,19 @@
 """
 Configuration module for DriftGuard.
 """
-from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, EmailStr, Field, validator
-from pydantic import Literal
+from typing import Dict, List, Optional, Union, Literal
+from pydantic import BaseModel, Field, validator, EmailStr
 
 class EmailConfig(BaseModel):
     """Email configuration settings"""
-    enabled: bool = False
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_user: str
-    smtp_password: str
+    host: str
+    port: int
+    username: str
+    password: str
+    use_tls: bool = True
     default_recipients: List[EmailStr] = []
     
-    @validator('smtp_port')
+    @validator('port')
     def validate_port(cls, v):
         if not 0 <= v <= 65535:
             raise ValueError("SMTP port must be between 0 and 65535")

@@ -17,7 +17,8 @@ setup(
     ],
     python_requires='>=3.6',  
     install_requires=[
-        'pydantic>=4.12.2',  
+        'pydantic>=2.0.0',
+        'pydantic-settings>=2.0.0',
         'numpy>=1.24.0',
         'pandas>=2.0.0',
         'scipy>=1.10.0',
