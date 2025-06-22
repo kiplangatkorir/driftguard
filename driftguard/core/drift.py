@@ -58,11 +58,18 @@ class DriftDetector(IDriftDetector):
         """Initialize with reference data"""
         self.reference_data = reference_data.copy()
         
-        # Store feature types
-        # Compute reference statistics
-        self.reference_stats = {}
+        # First, determine feature types
+        self.feature_types = {}
         for col in reference_data.columns:
-            if self.feature_types[col] == 'continuous':
+            if pd.api.types.is_numeric_dtype(reference_data[col]):
+                self.feature_types[col] = 'continuous'
+            else:
+                self.feature_types[col] = 'categorical'
+        
+        # Then compute reference statistics
+        self.reference_stats = {}
+        for col, ftype in self.feature_types.items():
+            if ftype == 'continuous':
                 values = reference_data[col].dropna()
                 self.reference_stats[col] = {
                     'mean': values.mean(),
