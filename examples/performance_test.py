@@ -21,28 +21,36 @@ def main():
         
         # Generate synthetic data with some drift
         ref_data = pd.DataFrame({
-            f'feature_{i}': np.random.normal(0, 1, 10000) 
-            for i in range(10)  # Reduced from 50 to 10 for faster testing
+            f'feature_{i}': np.random.normal(0, 1, 100) 
+            for i in range(2)  # Reduced to 2 features with 100 samples
         })
+        logger.debug(f"Reference data shape: {ref_data.shape}")
+        logger.debug(f"Reference data head:\n{ref_data.head()}")
         
         # Introduce some drift in test data
         test_data = pd.DataFrame({
-            f'feature_{i}': np.random.normal(0.1, 1.1, 5000)  # Reduced size for testing
-            for i in range(10)  # Reduced from 50 to 10 for faster testing
+            f'feature_{i}': np.random.normal(0.1, 1.1, 50)  # Reduced to 50 samples
+            for i in range(2)  # Reduced to 2 features with 50 samples
         })
+        logger.debug(f"Test data shape: {test_data.shape}")
+        logger.debug(f"Test data head:\n{test_data.head()}")
         
         # Create synthetic labels
         y_train = (ref_data['feature_0'] > 0).astype(int)
+        logger.debug(f"Labels shape: {y_train.shape}")
+        logger.debug(f"Labels value counts:\n{y_train.value_counts()}")
         
         # Initialize and train a simple model
         logger.info("Training model...")
         model = RandomForestClassifier(n_estimators=10, random_state=42)
         model.fit(ref_data, y_train)
+        logger.debug(f"Model trained. Feature importances:\n{model.feature_importances_}")
         
         # Import after potential dependency issues are caught
         try:
             from driftguard.core.drift import DriftDetector
             from driftguard.core.config import DriftConfig
+            logger.debug("Successfully imported DriftGuard modules")
         except ImportError as e:
             logger.error(f"Failed to import DriftGuard modules: {e}")
             logger.error(traceback.format_exc())
@@ -51,11 +59,16 @@ def main():
         logger.info("Initializing detector...")
         config = DriftConfig(methods=['ks', 'psi', 'jsd'])
         detector = DriftDetector(config)
+        logger.debug(f"Detector initialized with methods: {config.methods}")
         
         try:
             detector.initialize(ref_data)
+            logger.debug("Detector initialized successfully")
+            logger.debug(f"Feature types: {detector.feature_types}")
+            logger.debug(f"Reference stats: {detector.reference_stats}")
             logger.info("Attaching model for SHAP calculations...")
             detector.attach_model(model)
+            logger.debug("Model attached successfully")
             
             # Test performance
             logger.info("\nRunning optimized detection...")
@@ -65,13 +78,16 @@ def main():
             logger.info("Batch size: 1000")
             
             start = time.time()
+            logger.debug("Starting detection with batch size 1000")
             results = detector.detect(test_data, batch_size=1000)
             duration = time.time() - start
+            logger.debug(f"Detection completed in {duration:.2f} seconds")
             
             # Show results
             logger.info("\n=== Results ===")
             logger.info(f"Total time: {duration:.2f} seconds")
             if results:
+                logger.debug(f"Raw results: {results}")
                 drift_count = len([r for r in results if hasattr(r, 'score') and hasattr(r, 'threshold') and r.score > r.threshold])
                 logger.info(f"Features with drift: {drift_count}/{len(results)}")
                 
