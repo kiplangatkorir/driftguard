@@ -28,8 +28,6 @@ class DriftDetector(IDriftDetector):
         self.reference_data = None
         self.feature_types = {}
         self.reference_stats = {}
-        self.model = None  # Initialize model as None
-        self._explainer = None  # Initialize explainer as None
         self._initialized = False
         self._explainer = None
         self._baseline_shap = None
@@ -55,21 +53,24 @@ class DriftDetector(IDriftDetector):
         return result
     
     def initialize(self, reference_data: pd.DataFrame) -> None:
-        """Initialize with reference data"""
+        """Initialize detector with reference data"""
+        if reference_data.empty:
+            raise ValueError("Reference data cannot be empty")
+        
         self.reference_data = reference_data.copy()
         
-        # First, determine feature types
-        self.feature_types = {}
-        for col in reference_data.columns:
-            if pd.api.types.is_numeric_dtype(reference_data[col]):
-                self.feature_types[col] = 'continuous'
-            else:
-                self.feature_types[col] = 'categorical'
+        # Determine feature types
+        self.feature_types = {
+            col: 'categorical' if pd.api.types.is_categorical_dtype(reference_data[col])
+            or pd.api.types.is_object_dtype(reference_data[col])
+            else 'continuous'
+            for col in reference_data.columns
+        }
         
-        # Then compute reference statistics
+        # Compute reference statistics
         self.reference_stats = {}
-        for col, ftype in self.feature_types.items():
-            if ftype == 'continuous':
+        for col in reference_data.columns:
+            if self.feature_types[col] == 'continuous':
                 values = reference_data[col].dropna()
                 self.reference_stats[col] = {
                     'mean': values.mean(),
