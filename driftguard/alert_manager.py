@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -20,14 +20,14 @@ logger = logging.getLogger('AlertManager')
 
 
 class AlertConfig(BaseModel):
-    severity_levels: Dict[str, float] = {
-        'warning': 0.3,
-        'critical': 0.7
-    }
+    levels: Dict[str, float] = Field(
+        default={'warning': 0.3, 'critical': 0.7},
+        description="Severity level thresholds"
+    )
     
     def get_severity(self, score: float) -> str:
         """Determine alert severity based on drift score"""
-        for level, threshold in sorted(self.severity_levels.items(), key=lambda x: x[1], reverse=True):
+        for level, threshold in sorted(self.levels.items(), key=lambda x: x[1], reverse=True):
             if score >= threshold:
                 return level
         return 'info'
