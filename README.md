@@ -214,5 +214,5 @@ Or include this text:
 ## Contact  
 Have any questions? Want to give feedback? Reach out to me at:
 
-- **Email**: [korir@GraphFusion.onmicrosoft.com](mailto:korirkiplangat22@gmail.com)  
+- **Email**: [korir@msingiai.com](mailto:korir@msingiai.com)  
 - **GitHub**: [kiplangatkorir](https://github.com/kiplangatkorir)  
