@@ -88,6 +88,9 @@ class DriftDetector(IDriftDetector):
                     'value_counts': reference_data[col].value_counts(normalize=True)
                 }
         
+        # Group features by type for batch processing
+        self._feature_groups = self._group_features_by_type()
+        
         # Initialize SHAP explainer if model is available
         if self.model is not None:
             self._explainer = shap.Explainer(self.model.predict_proba, reference_data)
@@ -123,6 +126,13 @@ class DriftDetector(IDriftDetector):
         self._shap_cache[cache_key] = shap_values
         
         return shap_values
+    
+    def _group_features_by_type(self) -> Dict[str, List[str]]:
+        """Group features by their type for batch processing"""
+        grouped = {'categorical': [], 'continuous': []}
+        for col, ftype in self.feature_types.items():
+            grouped[ftype].append(col)
+        return grouped
     
     def _detect_feature(self, data: pd.DataFrame, col: str, method: str) -> DriftReport:
         """Detect drift for a single feature"""
@@ -343,18 +353,57 @@ class DriftDetector(IDriftDetector):
                 )
     
     def _process_batch(self, batch: pd.DataFrame) -> List[DriftReport]:
-        """Process a batch of data with progress tracking"""
+        """Process a batch of data with feature grouping"""
         reports = []
+        feature_groups = self._feature_groups
         total = len(self.config.methods) * len(self.reference_data.columns)
         
         with tqdm(total=total, desc="Processing features") as pbar:
             for method in self.config.methods:
-                for col in self.reference_data.columns:
-                    report = self._detect_feature(batch, col, method)
-                    if report is not None:
-                        reports.append(report)
-                    pbar.update(1)
+                # Process continuous features in batch
+                if feature_groups['continuous']:
+                    continuous_reports = self._process_continuous_features(
+                        batch, feature_groups['continuous'], method
+                    )
+                    reports.extend(continuous_reports)
+                    pbar.update(len(feature_groups['continuous']))
+                
+                # Process categorical features in batch
+                if feature_groups['categorical']:
+                    categorical_reports = self._process_categorical_features(
+                        batch, feature_groups['categorical'], method
+                    )
+                    reports.extend(categorical_reports)
+                    pbar.update(len(feature_groups['categorical']))
         
+        return reports
+    
+    def _process_continuous_features(
+        self, 
+        batch: pd.DataFrame, 
+        features: List[str], 
+        method: str
+    ) -> List[DriftReport]:
+        """Process continuous features in batch using vectorized operations"""
+        reports = []
+        for col in features:
+            report = self._detect_feature(batch, col, method)
+            if report is not None:
+                reports.append(report)
+        return reports
+    
+    def _process_categorical_features(
+        self, 
+        batch: pd.DataFrame, 
+        features: List[str], 
+        method: str
+    ) -> List[DriftReport]:
+        """Process categorical features in batch"""
+        reports = []
+        for col in features:
+            report = self._detect_feature(batch, col, method)
+            if report is not None:
+                reports.append(report)
         return reports
     
     def detect(self, data: pd.DataFrame, batch_size: int = 1000) -> List[DriftReport]:
