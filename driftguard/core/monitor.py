@@ -249,8 +249,7 @@ class ModelMonitor(IModelMonitor):
                 
                 # Trigger alert if AlertManager is attached
                 if self.alert_manager:
-                    alert_message = f"""
-Model Performance Degradation Detected
+                    alert_message = f"""Model Performance Degradation Detected
 
 Metric: {metric}
 Baseline Value: {reference_value:.4f}
@@ -258,8 +257,7 @@ Current Value: {value:.4f}
 Degradation: {degradation_pct:.2f}%
 Threshold: {threshold}
 
-This metric has degraded beyond the acceptable threshold.
-"""
+This metric has degraded beyond the acceptable threshold."""
                     # Calculate drift score for alert threshold
                     drift_score = degradation_pct / 100
                     self.alert_manager.check_and_alert(
