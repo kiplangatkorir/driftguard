@@ -67,9 +67,13 @@ def test_adaptive_sizing_with_auto_scale(reference_data, test_data, caplog):
     worker_count = int(worker_count_str)
     
     # Verify worker count is reasonable
-    cpu_count = os.cpu_count() or 4
+    cpu_count = os.cpu_count() or DEFAULT_CPU_COUNT
     num_batches = (len(test_data) + 999) // 1000  # 5 batches for 5000 rows
-    expected_max = min(cpu_count * 2, num_batches, cpu_count * 4)
+    expected_max = min(
+        cpu_count * WORKER_SCALE_FACTOR,
+        num_batches,
+        cpu_count * MAX_WORKER_SCALE_FACTOR
+    )
     
     assert worker_count <= expected_max
     assert worker_count > 0
@@ -126,7 +130,7 @@ def test_auto_scale_disabled(reference_data, test_data, caplog):
     worker_count_str = worker_logs[0].split()[1]
     worker_count = int(worker_count_str)
     
-    cpu_count = os.cpu_count() or 4
+    cpu_count = os.cpu_count() or DEFAULT_CPU_COUNT
     assert worker_count == cpu_count
 
 
