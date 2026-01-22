@@ -384,7 +384,7 @@ class DriftDetector(IDriftDetector):
         features: List[str], 
         method: str
     ) -> List[DriftReport]:
-        """Process continuous features in batch using vectorized operations"""
+        """Process continuous features in batch"""
         reports = []
         for col in features:
             report = self._detect_feature(batch, col, method)
