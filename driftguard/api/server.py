@@ -21,7 +21,7 @@ from prometheus_client import Counter, Histogram, generate_latest
 app = FastAPI(
     title="DriftGuard API",
     description="API for model monitoring and drift detection",
-    version="0.1.3"
+    version="0.1.6"
 )
 
 # Add CORS middleware
