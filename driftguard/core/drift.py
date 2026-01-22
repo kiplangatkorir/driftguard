@@ -352,17 +352,56 @@ class DriftDetector(IDriftDetector):
                     importance_change=importance_change
                 )
     
-    def _process_batch(self, batch: pd.DataFrame) -> List[DriftReport]:
-        """Process a batch of data with feature grouping"""
+    def _group_features_by_type(self) -> Dict[str, List[str]]:
+        """Group features by their data type"""
+        grouped = {'continuous': [], 'categorical': []}
+        for col, ftype in self.feature_types.items():
+            grouped[ftype].append(col)
+        return grouped
+    
+    def _process_features_batch(self, batch: pd.DataFrame, features: List[str], method: str) -> List[DriftReport]:
+        """Process multiple features of the same type together
+        
+        This method processes features sequentially but groups them by type for better
+        organization and potential future optimizations. The feature_batch_size config
+        parameter is reserved for future chunking optimizations.
+        """
         reports = []
-        feature_groups = self._feature_groups
+        for col in features:
+            report = self._detect_feature(batch, col, method)
+            if report is not None:
+                reports.append(report)
+        return reports
+    
+    def _process_batch(self, batch: pd.DataFrame) -> List[DriftReport]:
+        """Process a batch of data with grouped feature processing"""
+        reports = []
+        
+        # Check if batch processing is enabled
+        if not self.config.batch_feature_processing:
+            # Fall back to original implementation
+            total = len(self.config.methods) * len(self.reference_data.columns)
+            
+            with tqdm(total=total, desc="Processing features") as pbar:
+                for method in self.config.methods:
+                    for col in self.reference_data.columns:
+                        report = self._detect_feature(batch, col, method)
+                        if report is not None:
+                            reports.append(report)
+                        pbar.update(1)
+            
+            return reports
+        
+        # Use grouped feature processing
+        feature_groups = self._group_features_by_type()
+        
         total = len(self.config.methods) * len(self.reference_data.columns)
         
         with tqdm(total=total, desc="Processing features") as pbar:
             for method in self.config.methods:
                 # Process continuous features in batch
                 if feature_groups['continuous']:
-                    continuous_reports = self._process_continuous_features(
+                    continuous_reports = self._process_features_batch(
                         batch, feature_groups['continuous'], method
                     )
                     reports.extend(continuous_reports)
@@ -370,7 +409,7 @@ class DriftDetector(IDriftDetector):
                 
                 # Process categorical features in batch
                 if feature_groups['categorical']:
-                    categorical_reports = self._process_categorical_features(
+                    categorical_reports = self._process_features_batch(
                         batch, feature_groups['categorical'], method
                     )
                     reports.extend(categorical_reports)
