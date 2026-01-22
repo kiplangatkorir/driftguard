@@ -83,6 +83,10 @@ class IModelMonitor(Protocol):
     def attach_model(self, model: Any) -> None:
         """Attach a model for potential retraining"""
         ...
+    
+    def attach_alert_manager(self, alert_manager: Any) -> None:
+        """Attach an AlertManager for performance alerts"""
+        ...
         
     def should_retrain(self, current_performance: dict) -> bool:
         """Determine if retraining is needed"""
