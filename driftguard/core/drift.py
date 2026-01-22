@@ -20,6 +20,11 @@ from .config import DriftConfig
 
 logger = logging.getLogger(__name__)
 
+# Thread pool sizing constants
+DEFAULT_CPU_COUNT = 4  # Fallback when os.cpu_count() returns None
+WORKER_SCALE_FACTOR = 2  # Multiplier for initial worker count
+MAX_WORKER_SCALE_FACTOR = 4  # Upper bound multiplier for worker count
+
 class DriftDetector(IDriftDetector):
     """Detects data drift using multiple statistical methods"""
     
@@ -356,12 +361,16 @@ class DriftDetector(IDriftDetector):
                   for i in range(0, len(data), batch_size)]
         
         # Adaptive thread pool sizing
-        cpu_count = os.cpu_count() or 4
+        cpu_count = os.cpu_count() or DEFAULT_CPU_COUNT
         if self.config.max_workers is not None:
             max_workers = self.config.max_workers
         elif self.config.auto_scale_workers:
             # Scale based on workload and CPU
-            max_workers = min(cpu_count * 2, len(batches), cpu_count * 4)
+            max_workers = min(
+                cpu_count * WORKER_SCALE_FACTOR,
+                len(batches),
+                cpu_count * MAX_WORKER_SCALE_FACTOR
+            )
         else:
             max_workers = cpu_count
         

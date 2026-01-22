@@ -6,7 +6,12 @@ import os
 from unittest.mock import patch, MagicMock
 import logging
 
-from driftguard.core.drift import DriftDetector
+from driftguard.core.drift import (
+    DriftDetector,
+    DEFAULT_CPU_COUNT,
+    WORKER_SCALE_FACTOR,
+    MAX_WORKER_SCALE_FACTOR
+)
 from driftguard.core.config import DriftConfig
 
 
@@ -210,9 +215,10 @@ def test_zero_cpu_count_fallback(reference_data, test_data, caplog):
         worker_count_str = worker_logs[0].split()[1]
         worker_count = int(worker_count_str)
         
-        # Should use fallback value of 4
+        # Should use fallback value
         assert worker_count > 0
-        assert worker_count <= 16  # 4 * 4 upper bound when cpu_count is 4
+        # Upper bound is DEFAULT_CPU_COUNT * MAX_WORKER_SCALE_FACTOR
+        assert worker_count <= DEFAULT_CPU_COUNT * MAX_WORKER_SCALE_FACTOR
 
 
 def test_config_defaults():
