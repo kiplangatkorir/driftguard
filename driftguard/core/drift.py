@@ -96,7 +96,13 @@ class DriftDetector(IDriftDetector):
         self._initialized = True
     
     def attach_model(self, model):
-        """Attach a model for feature importance analysis."""
+        """Attach a model for feature importance analysis.
+        
+        Warning: SHAP explainers may not be thread-safe. When using multithreaded
+        drift detection (via detect() method), SHAP-based importance calculations
+        may experience race conditions. Consider disabling multithreading 
+        (set auto_scale_workers=False, max_workers=1) if SHAP stability issues occur.
+        """
         self.model = model
         if self._initialized and self.reference_data is not None:
             self._explainer = shap.Explainer(model.predict_proba, self.reference_data)
@@ -360,6 +366,10 @@ class DriftDetector(IDriftDetector):
         batches = [data.iloc[i:i+batch_size] 
                   for i in range(0, len(data), batch_size)]
         
+        # Handle empty input
+        if not batches:
+            return []
+        
         # Adaptive thread pool sizing
         cpu_count = os.cpu_count() or DEFAULT_CPU_COUNT
         if self.config.max_workers is not None:
@@ -374,7 +384,7 @@ class DriftDetector(IDriftDetector):
         else:
             max_workers = cpu_count
         
-        logger.info(f"Using {max_workers} workers for drift detection")
+        logger.info("Using %d workers for drift detection", max_workers)
                   
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self._process_batch, batch) 

@@ -249,3 +249,70 @@ def test_detect_method_returns_results(reference_data, test_data):
     # Verify results are returned
     assert isinstance(results, list)
     assert len(results) > 0
+
+
+def test_empty_dataset_returns_empty_list(reference_data):
+    """Test that empty input data returns empty list without error"""
+    config = DriftConfig(
+        methods=['ks'],
+        auto_scale_workers=True,
+        max_workers=None
+    )
+    
+    detector = DriftDetector(config)
+    detector.initialize(reference_data)
+    
+    # Empty dataframe
+    empty_data = reference_data.iloc[0:0]
+    results = detector.detect(empty_data, batch_size=1000)
+    
+    # Should return empty list, not raise error
+    assert isinstance(results, list)
+    assert len(results) == 0
+
+
+def test_max_workers_validation():
+    """Test that max_workers validation works correctly"""
+    import pytest
+    
+    # Valid: None
+    config1 = DriftConfig(max_workers=None)
+    assert config1.max_workers is None
+    
+    # Valid: positive integer
+    config2 = DriftConfig(max_workers=4)
+    assert config2.max_workers == 4
+    
+    # Invalid: zero
+    with pytest.raises(ValueError, match="max_workers must be at least 1"):
+        DriftConfig(max_workers=0)
+    
+    # Invalid: negative
+    with pytest.raises(ValueError, match="max_workers must be at least 1"):
+        DriftConfig(max_workers=-1)
+
+
+def test_explicit_single_worker(reference_data, test_data, caplog):
+    """Test explicit max_workers=1 behavior"""
+    config = DriftConfig(
+        methods=['ks'],
+        max_workers=1
+    )
+    
+    detector = DriftDetector(config)
+    detector.initialize(reference_data)
+    
+    with caplog.at_level(logging.INFO):
+        results = detector.detect(test_data, batch_size=1000)
+    
+    # Should use exactly 1 worker
+    log_messages = [record.message for record in caplog.records]
+    worker_logs = [msg for msg in log_messages if 'workers for drift detection' in msg]
+    assert len(worker_logs) > 0
+    
+    # Verify single worker was used
+    assert '1 workers' in worker_logs[0] or '1 worker' in worker_logs[0]
+    
+    # Results should still be valid
+    assert isinstance(results, list)
+    assert len(results) > 0

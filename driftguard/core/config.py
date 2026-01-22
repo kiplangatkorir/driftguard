@@ -95,6 +95,12 @@ class DriftConfig(BaseModel):
         if v < 100:
             raise ValueError("Window size must be at least 100")
         return v
+    
+    @validator('max_workers')
+    def validate_max_workers(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("max_workers must be at least 1")
+        return v
 
 class ModelMonitorConfig(BaseModel):
     """Model monitoring configuration"""
