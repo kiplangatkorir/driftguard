@@ -206,7 +206,7 @@ def test_zero_cpu_count_fallback(reference_data, test_data, caplog):
     detector.initialize(reference_data)
     
     # Mock os.cpu_count to return None
-    with patch('os.cpu_count', return_value=None):
+    with patch('driftguard.core.drift.os.cpu_count', return_value=None):
         with caplog.at_level(logging.INFO):
             detector.detect(test_data, batch_size=1000)
         
