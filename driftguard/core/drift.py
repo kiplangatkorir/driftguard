@@ -2,6 +2,7 @@
 Drift detection module for DriftGuard.
 """
 from typing import Dict, List, Optional, Tuple, Union
+import os
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -18,6 +19,11 @@ from .interfaces import IDriftDetector, DriftReport
 from .config import DriftConfig
 
 logger = logging.getLogger(__name__)
+
+# Thread pool sizing constants
+DEFAULT_CPU_COUNT = 4  # Fallback when os.cpu_count() returns None
+WORKER_SCALE_FACTOR = 2  # Multiplier for initial worker count
+MAX_WORKER_SCALE_FACTOR = 4  # Upper bound multiplier for worker count
 
 class DriftDetector(IDriftDetector):
     """Detects data drift using multiple statistical methods"""
@@ -83,14 +89,20 @@ class DriftDetector(IDriftDetector):
                 }
         
         # Initialize SHAP explainer if model is available
-        if hasattr(self, 'model'):
+        if self.model is not None:
             self._explainer = shap.Explainer(self.model.predict_proba, reference_data)
             self._baseline_shap = self._calculate_shap_values(self.reference_data)
         
         self._initialized = True
     
     def attach_model(self, model):
-        """Attach a model for feature importance analysis."""
+        """Attach a model for feature importance analysis.
+        
+        Warning: SHAP explainers may not be thread-safe. When using multithreaded
+        drift detection (via detect() method), SHAP-based importance calculations
+        may experience race conditions. Consider disabling multithreading 
+        (set auto_scale_workers=False, max_workers=1) if SHAP stability issues occur.
+        """
         self.model = model
         if self._initialized and self.reference_data is not None:
             self._explainer = shap.Explainer(model.predict_proba, self.reference_data)
@@ -128,7 +140,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -185,7 +197,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -238,7 +250,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -274,7 +286,7 @@ class DriftDetector(IDriftDetector):
                 
                 # Calculate importance change if SHAP values available
                 importance_change = None
-                if hasattr(self, '_explainer') and col in self.reference_data.columns:
+                if self._explainer is not None and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
                     shap_values = self._calculate_shap_values(data)
                     importance_change = (
@@ -314,7 +326,7 @@ class DriftDetector(IDriftDetector):
                 
                 # Calculate importance change if SHAP values available
                 importance_change = None
-                if hasattr(self, '_explainer') and col in self.reference_data.columns:
+                if self._explainer is not None and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
                     shap_values = self._calculate_shap_values(data)
                     importance_change = (
@@ -346,15 +358,35 @@ class DriftDetector(IDriftDetector):
         return reports
     
     def detect(self, data: pd.DataFrame, batch_size: int = 1000) -> List[DriftReport]:
-        """Process data in memory-efficient batches"""
+        """Process data in memory-efficient batches with adaptive threading"""
         if not self._initialized:
             raise RuntimeError("Detector not initialized")
             
         results = []
         batches = [data.iloc[i:i+batch_size] 
                   for i in range(0, len(data), batch_size)]
+        
+        # Handle empty input
+        if not batches:
+            return []
+        
+        # Adaptive thread pool sizing
+        cpu_count = os.cpu_count() or DEFAULT_CPU_COUNT
+        if self.config.max_workers is not None:
+            max_workers = self.config.max_workers
+        elif self.config.auto_scale_workers:
+            # Scale based on workload and CPU
+            max_workers = min(
+                cpu_count * WORKER_SCALE_FACTOR,
+                len(batches),
+                cpu_count * MAX_WORKER_SCALE_FACTOR
+            )
+        else:
+            max_workers = cpu_count
+        
+        logger.info("Using %d workers for drift detection", max_workers)
                   
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self._process_batch, batch) 
                       for batch in batches]
             for future in as_completed(futures):

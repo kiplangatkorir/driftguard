@@ -67,6 +67,8 @@ class DriftConfig(BaseModel):
         "psi": 0.2
     }
     window_size: int = 1000
+    max_workers: Optional[int] = None
+    auto_scale_workers: bool = True
     
     @validator('methods')
     def validate_methods(cls, v):
@@ -92,6 +94,12 @@ class DriftConfig(BaseModel):
     def validate_window(cls, v):
         if v < 100:
             raise ValueError("Window size must be at least 100")
+        return v
+    
+    @validator('max_workers')
+    def validate_max_workers(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("max_workers must be at least 1")
         return v
 
 class ModelMonitorConfig(BaseModel):
