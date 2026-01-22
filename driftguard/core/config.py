@@ -67,6 +67,8 @@ class DriftConfig(BaseModel):
         "psi": 0.2
     }
     window_size: int = 1000
+    max_workers: Optional[int] = None
+    auto_scale_workers: bool = True
     
     @validator('methods')
     def validate_methods(cls, v):

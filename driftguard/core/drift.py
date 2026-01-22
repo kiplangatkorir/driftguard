@@ -2,6 +2,7 @@
 Drift detection module for DriftGuard.
 """
 from typing import Dict, List, Optional, Tuple, Union
+import os
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -346,15 +347,27 @@ class DriftDetector(IDriftDetector):
         return reports
     
     def detect(self, data: pd.DataFrame, batch_size: int = 1000) -> List[DriftReport]:
-        """Process data in memory-efficient batches"""
+        """Process data in memory-efficient batches with adaptive threading"""
         if not self._initialized:
             raise RuntimeError("Detector not initialized")
             
         results = []
         batches = [data.iloc[i:i+batch_size] 
                   for i in range(0, len(data), batch_size)]
+        
+        # Adaptive thread pool sizing
+        cpu_count = os.cpu_count() or 4
+        if self.config.max_workers is not None:
+            max_workers = self.config.max_workers
+        elif self.config.auto_scale_workers:
+            # Scale based on workload and CPU
+            max_workers = min(cpu_count * 2, len(batches), cpu_count * 4)
+        else:
+            max_workers = cpu_count
+        
+        logger.info(f"Using {max_workers} workers for drift detection")
                   
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self._process_batch, batch) 
                       for batch in batches]
             for future in as_completed(futures):
