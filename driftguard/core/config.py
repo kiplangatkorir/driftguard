@@ -69,8 +69,8 @@ class DriftConfig(BaseModel):
     window_size: int = 1000
     max_workers: Optional[int] = None
     auto_scale_workers: bool = True
-    batch_feature_processing: bool = True
-    feature_batch_size: int = 10
+    batch_feature_processing: bool = True  # Enable grouping features by type for processing
+    feature_batch_size: int = 10  # Reserved for future chunking optimizations
     
     @validator('methods')
     def validate_methods(cls, v):

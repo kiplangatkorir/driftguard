@@ -350,7 +350,12 @@ class DriftDetector(IDriftDetector):
         return grouped
     
     def _process_features_batch(self, batch: pd.DataFrame, features: List[str], method: str) -> List[DriftReport]:
-        """Process multiple features of the same type together"""
+        """Process multiple features of the same type together
+        
+        This method processes features sequentially but groups them by type for better
+        organization and potential future optimizations. The feature_batch_size config
+        parameter is reserved for future chunking optimizations.
+        """
         reports = []
         for col in features:
             report = self._detect_feature(batch, col, method)
