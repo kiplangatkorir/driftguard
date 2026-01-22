@@ -69,6 +69,8 @@ class DriftConfig(BaseModel):
     window_size: int = 1000
     max_workers: Optional[int] = None
     auto_scale_workers: bool = True
+    batch_feature_processing: bool = True
+    feature_batch_size: int = 10
     
     @validator('methods')
     def validate_methods(cls, v):
@@ -100,6 +102,12 @@ class DriftConfig(BaseModel):
     def validate_max_workers(cls, v):
         if v is not None and v < 1:
             raise ValueError("max_workers must be at least 1")
+        return v
+    
+    @validator('feature_batch_size')
+    def validate_feature_batch_size(cls, v):
+        if v < 1:
+            raise ValueError("feature_batch_size must be at least 1")
         return v
 
 class ModelMonitorConfig(BaseModel):
