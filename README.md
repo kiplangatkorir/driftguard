@@ -2,7 +2,7 @@
 # **Drift Guard** 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
-**Version:** 0.1.5
+**Version:** 0.1.6
 
 **DriftGuard** is a simple, flexible, and effective library for detecting **data drift** and **concept drift** in your machine learning models. It helps you keep track of model performance in production and catch problems early, so you can fix them before they impact your results.  
 
@@ -24,27 +24,17 @@ Detecting this drift before it hurts your model is crucial for maintaining the a
 - **Monitoring Enhancements**: Configurable retraining triggers, parallel processing, and feature importance tracking
 - **Alerting Improvements**: Rate limiting, detailed alerts, and PDF attachments
 
-## New in v0.1.5
+## New in v0.1.6
 
-### Automated Reporting
-- **PDF Report Generation**: Automatic generation of professional PDF reports
-- **Email Integration**: Reports automatically emailed after monitoring runs
-- **Enhanced Content**: Includes performance metrics and top drifted features
+### Added
+- **Adaptive Thread Pool Sizing**: Dynamic thread pool sizing based on CPU cores and workload for optimal performance
+- **Batch Feature Processing**: Features grouped by type with parallel batch processing for improved efficiency
+- **AlertManager Integration with ModelMonitor**: Automatic email alerts on performance degradation with configurable thresholds
 
-### Visualization
-- **Drift Score Charts**: Visual representation of feature drift severity
-- **Importance Change Tracking**: Shows how feature importance evolves
-- **Printable Format**: Clean, professional layout for sharing
-
-### Monitoring Enhancements
-- **Performance Thresholds**: Configurable retraining triggers
-- **Parallel Processing**: Faster drift detection with ThreadPoolExecutor
-- **Feature Importance**: SHAP-based importance tracking
-
-### Alerting Improvements
-- **Rate Limiting**: Prevent alert flooding
-- **Detailed Alerts**: Include drift scores and importance changes
-- **PDF Attachments**: Comprehensive reports with each alert
+### Improved
+- Performance optimization for drift detection
+- Better resource utilization with adaptive threading
+- Enhanced monitoring capabilities with integrated alerts
 
 ## Core Detection Techniques
 
@@ -203,13 +193,13 @@ If you use DriftGuard in your research, please cite it like this:
   title = {Drift Guard: A Python Library for Monitoring Data and Concept Drift in Machine Learning},
   year = {2025},
   url = {https://github.com/kiplangatkorir/driftguard},
-  version = {0.1.0},
+  version = {0.1.6},
   license = {MIT}
 }
 ```
 
 Or include this text:
-> Korir, Kiplangat. (2025). *Drift Guard: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.0. Available at: https://github.com/kiplangatkorir/driftguard.
+> Korir, Kiplangat. (2025). *Drift Guard: A Python Library for Monitoring Data and Concept Drift in Machine Learning*. Version 0.1.6. Available at: https://github.com/kiplangatkorir/driftguard.
 
 ## Contact  
 Have any questions? Want to give feedback? Reach out to me at:

@@ -1,5 +1,5 @@
 """
-Enhanced Alert Manager for DriftGuard v0.1.5
+Enhanced Alert Manager for DriftGuard v0.1.6
 Features:
 - Deduplication of alerts
 - Multiple notification channels
