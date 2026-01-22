@@ -1,12 +1,15 @@
 """
 Model monitoring module for DriftGuard.
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np
 import pandas as pd
 from sklearn import metrics, clone
 from datetime import datetime
 import logging
+
+if TYPE_CHECKING:
+    from ..alert_manager import AlertManager
 
 from .interfaces import IModelMonitor
 from .config import MonitorConfig
@@ -16,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ModelMonitor(IModelMonitor):
     """Monitors model performance and detects concept drift"""
     
-    def __init__(self, config: Optional[MonitorConfig] = None):
+    def __init__(self, config: Optional[MonitorConfig] = None, alert_manager: Optional['AlertManager'] = None):
         """Initialize model monitor"""
         self.config = config or MonitorConfig()
         self.reference_metrics = {}
@@ -25,6 +28,7 @@ class ModelMonitor(IModelMonitor):
         self.model = None  # Track the current model
         self.retrain_count = 0
         self._initialized = False
+        self.alert_manager = alert_manager
     
     def initialize(
         self,
@@ -54,6 +58,10 @@ class ModelMonitor(IModelMonitor):
     def attach_model(self, model):
         """Attach a model for potential retraining"""
         self.model = model
+    
+    def attach_alert_manager(self, alert_manager: 'AlertManager') -> None:
+        """Attach an AlertManager for performance alerts"""
+        self.alert_manager = alert_manager
         
     def should_retrain(self, current_performance: dict) -> bool:
         """Determine if retraining is needed based on performance drop"""
@@ -204,21 +212,26 @@ class ModelMonitor(IModelMonitor):
         self,
         current_metrics: Dict[str, float]
     ) -> List[str]:
-        """Check for performance degradation"""
+        """Check for performance degradation and trigger alerts"""
         degraded_metrics = []
         
         for metric, value in current_metrics.items():
             reference_value = self.reference_metrics[metric]
             threshold = self.config.thresholds[metric]
             
+            degraded = False
+            degradation_pct = 0.0
+            
             if self.config.threshold_type == 'absolute':
                 if value < threshold:
-                    degraded_metrics.append(metric)
+                    degraded = True
+                    degradation_pct = ((threshold - value) / threshold) * 100
             
             elif self.config.threshold_type == 'relative':
                 relative_change = (value - reference_value) / reference_value
                 if relative_change < -threshold:
-                    degraded_metrics.append(metric)
+                    degraded = True
+                    degradation_pct = abs(relative_change) * 100
             
             elif self.config.threshold_type == 'dynamic':
                 # Use statistical process control
@@ -228,7 +241,29 @@ class ModelMonitor(IModelMonitor):
                     reference_value,
                     threshold
                 ):
-                    degraded_metrics.append(metric)
+                    degraded = True
+                    degradation_pct = abs((value - reference_value) / reference_value) * 100
+            
+            if degraded:
+                degraded_metrics.append(metric)
+                
+                # Trigger alert if AlertManager is attached
+                if self.alert_manager:
+                    alert_message = f"""Model Performance Degradation Detected
+
+Metric: {metric}
+Baseline Value: {reference_value:.4f}
+Current Value: {value:.4f}
+Degradation: {degradation_pct:.2f}%
+Threshold: {threshold}
+
+This metric has degraded beyond the acceptable threshold."""
+                    # Calculate drift score for alert threshold
+                    drift_score = degradation_pct / 100
+                    self.alert_manager.check_and_alert(
+                        drift_score=drift_score,
+                        message=alert_message
+                    )
         
         return degraded_metrics
     

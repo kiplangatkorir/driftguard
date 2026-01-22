@@ -104,10 +104,91 @@ drift_report = detector.detect_drift(new_data)
 Tracks model performance over time.
 
 ```python
-from driftguard.model_monitor import ModelMonitor
+from driftguard.core.monitor import ModelMonitor
+from driftguard.core.config import MonitorConfig
 
-monitor = ModelMonitor(model)
-performance = monitor.track_performance(data, labels)
+config = MonitorConfig(
+    metrics=['accuracy', 'precision', 'recall', 'f1'],
+    threshold_type='relative',
+    thresholds={'accuracy': 0.1, 'precision': 0.1, 'recall': 0.1, 'f1': 0.1}
+)
+
+monitor = ModelMonitor(config)
+monitor.initialize(reference_predictions, reference_labels)
+performance = monitor.track(new_predictions, new_labels)
+```
+
+##### Performance Alerting
+ModelMonitor can be integrated with AlertManager to automatically send email alerts when model performance degrades beyond acceptable thresholds.
+
+**Setting up Performance Alerts:**
+
+```python
+from driftguard.core.monitor import ModelMonitor
+from driftguard.core.config import MonitorConfig
+from driftguard.alert_manager import AlertManager
+
+# Configure monitoring thresholds
+config = MonitorConfig(
+    metrics=['accuracy', 'precision', 'recall', 'f1'],
+    threshold_type='relative',  # or 'absolute'
+    thresholds={
+        'accuracy': 0.1,    # 10% relative degradation
+        'precision': 0.1,
+        'recall': 0.1,
+        'f1': 0.1
+    }
+)
+
+# Initialize monitor
+monitor = ModelMonitor(config)
+monitor.initialize(reference_predictions, reference_labels)
+
+# Set up alert manager
+alert_manager = AlertManager(threshold=0.05)  # 5% drift score threshold
+alert_manager.set_recipient_email("ml-team@company.com", "ML Team")
+
+# Attach alert manager to monitor
+monitor.attach_alert_manager(alert_manager)
+
+# Track performance - alerts will be sent automatically on degradation
+metrics = monitor.track(new_predictions, new_labels)
+```
+
+**Alert Message Format:**
+
+When performance degrades, the alert email will include:
+- **Metric name**: Which metric degraded (accuracy, precision, etc.)
+- **Baseline value**: Original reference performance
+- **Current value**: Current performance measurement
+- **Degradation percentage**: How much the metric degraded
+- **Threshold**: The configured threshold that was exceeded
+
+**Example Alert:**
+```
+Model Performance Degradation Detected
+
+Metric: accuracy
+Baseline Value: 0.8500
+Current Value: 0.7200
+Degradation: 15.29%
+Threshold: 0.1
+
+This metric has degraded beyond the acceptable threshold.
+```
+
+**Threshold Types:**
+
+- **Relative**: Detects degradation relative to baseline (e.g., 10% worse than baseline)
+- **Absolute**: Detects when metric falls below an absolute value (e.g., accuracy < 0.85)
+- **Dynamic**: Uses statistical process control (3-sigma rule) for detection
+
+**Alternative: Initialize with AlertManager:**
+
+```python
+# You can also pass AlertManager during initialization
+monitor = ModelMonitor(config=config, alert_manager=alert_manager)
+monitor.initialize(reference_predictions, reference_labels)
 ```
 
 #### AlertManager
