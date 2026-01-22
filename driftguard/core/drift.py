@@ -84,7 +84,7 @@ class DriftDetector(IDriftDetector):
                 }
         
         # Initialize SHAP explainer if model is available
-        if hasattr(self, 'model'):
+        if self.model is not None:
             self._explainer = shap.Explainer(self.model.predict_proba, reference_data)
             self._baseline_shap = self._calculate_shap_values(self.reference_data)
         
@@ -129,7 +129,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -186,7 +186,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -239,7 +239,7 @@ class DriftDetector(IDriftDetector):
             
             # Calculate importance change if SHAP values available
             importance_change = None
-            if hasattr(self, '_explainer') and col in self.reference_data.columns:
+            if self._explainer is not None and col in self.reference_data.columns:
                 col_idx = data.columns.get_loc(col)
                 shap_values = self._calculate_shap_values(data)
                 importance_change = (
@@ -275,7 +275,7 @@ class DriftDetector(IDriftDetector):
                 
                 # Calculate importance change if SHAP values available
                 importance_change = None
-                if hasattr(self, '_explainer') and col in self.reference_data.columns:
+                if self._explainer is not None and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
                     shap_values = self._calculate_shap_values(data)
                     importance_change = (
@@ -315,7 +315,7 @@ class DriftDetector(IDriftDetector):
                 
                 # Calculate importance change if SHAP values available
                 importance_change = None
-                if hasattr(self, '_explainer') and col in self.reference_data.columns:
+                if self._explainer is not None and col in self.reference_data.columns:
                     col_idx = data.columns.get_loc(col)
                     shap_values = self._calculate_shap_values(data)
                     importance_change = (
